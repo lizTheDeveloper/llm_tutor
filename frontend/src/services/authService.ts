@@ -17,8 +17,18 @@ interface AuthResponse {
     id: string;
     email: string;
     name: string;
+    role?: string;
+    email_verified?: boolean;
   };
-  token: string;
+  access_token: string;
+  refresh_token: string;
+  token_type?: string;
+  expires_in?: number;
+}
+
+interface OAuthExchangeRequest {
+  code: string;
+  provider: 'github' | 'google';
 }
 
 export const authService = {
@@ -64,5 +74,44 @@ export const authService = {
       { email }
     );
     return response.data.data;
+  },
+
+  async exchangeOAuthCode(
+    code: string,
+    provider: 'github' | 'google'
+  ): Promise<AuthResponse> {
+    const response = await apiClient.post<ApiResponse<AuthResponse>>(
+      '/auth/oauth/exchange',
+      { code, provider }
+    );
+    return response.data.data;
+  },
+
+  initiateGitHubOAuth(): void {
+    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+    window.location.href = `${apiUrl}/auth/oauth/github`;
+  },
+
+  initiateGoogleOAuth(): void {
+    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+    window.location.href = `${apiUrl}/auth/oauth/google`;
+  },
+
+  saveTokens(tokens: Pick<AuthResponse, 'access_token' | 'refresh_token'>): void {
+    localStorage.setItem('authToken', tokens.access_token);
+    localStorage.setItem('refreshToken', tokens.refresh_token);
+  },
+
+  getAccessToken(): string | null {
+    return localStorage.getItem('authToken');
+  },
+
+  getRefreshToken(): string | null {
+    return localStorage.getItem('refreshToken');
+  },
+
+  clearTokens(): void {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
   },
 };

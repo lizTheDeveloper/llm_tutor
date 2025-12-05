@@ -10,7 +10,7 @@ source "${SCRIPT_DIR}/../configs/project.env"
 
 VM_NAME="codementor-app-vm"
 APP_DIR="/opt/codementor"
-BACKEND_DIR="${SCRIPT_DIR}/../../../../backend"
+BACKEND_DIR="${SCRIPT_DIR}/../../../.."
 
 echo "╔═══════════════════════════════════════════════════════════╗"
 echo "║   Deploying CodeMentor to VM                               ║"

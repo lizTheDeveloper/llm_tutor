@@ -54,3 +54,16 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
+
+# Autonomous Development System
+agent-logs/
+summaries/
+reviews/review-*.md
+.env
+deploy/.env
+
+# VM-specific
+*.pem
+*.key
+id_rsa*
+id_ed25519*

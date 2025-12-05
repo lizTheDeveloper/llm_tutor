@@ -1,9 +1,17 @@
 #!/bin/bash
 
-# Stop Autonomous Agent - Unloads the launchd task
+# Stop Autonomous Agents - Unloads all autonomous launchd tasks
 
-echo "Stopping autonomous agent launchd task..."
+echo "Stopping autonomous agent launchd tasks..."
+
+# Stop TDD agent
 launchctl unload /Users/annhoward/Library/LaunchAgents/com.llmtutor.autonomous-agent.plist
+echo "✓ TDD agent stopped"
 
-echo "Autonomous agent stopped at $(date)"
-echo "Task unloaded successfully."
+# Stop reviewer agent
+launchctl unload /Users/annhoward/Library/LaunchAgents/com.llmtutor.autonomous-reviewer.plist
+echo "✓ Reviewer agent stopped"
+
+echo ""
+echo "All autonomous agents stopped at $(date)"
+echo "Tasks unloaded successfully."

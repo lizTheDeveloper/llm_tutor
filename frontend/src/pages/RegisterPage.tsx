@@ -141,13 +141,11 @@ function RegisterPage() {
   };
 
   const handleGitHubLogin = () => {
-    // Redirect to backend OAuth endpoint
-    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/oauth/github`;
+    authService.initiateGitHubOAuth();
   };
 
   const handleGoogleLogin = () => {
-    // Redirect to backend OAuth endpoint
-    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/oauth/google`;
+    authService.initiateGoogleOAuth();
   };
 
   return (

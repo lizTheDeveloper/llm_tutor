@@ -102,11 +102,21 @@ function LoginPage() {
         password: formData.password,
       });
 
-      dispatch(setCredentials({ user: response.user, token: response.token }));
-      localStorage.setItem('authToken', response.token);
+      // Save tokens
+      authService.saveTokens({
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      });
+
+      // Update Redux store
+      dispatch(setCredentials({
+        user: response.user,
+        token: response.access_token
+      }));
+
       navigate('/dashboard');
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Login failed. Please check your credentials.';
+      const errorMsg = err.response?.data?.error?.message || 'Login failed. Please check your credentials.';
       setErrorMessage(errorMsg);
       dispatch(setError(errorMsg));
     } finally {
@@ -116,13 +126,11 @@ function LoginPage() {
   };
 
   const handleGitHubLogin = () => {
-    // Redirect to backend OAuth endpoint
-    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/oauth/github`;
+    authService.initiateGitHubOAuth();
   };
 
   const handleGoogleLogin = () => {
-    // Redirect to backend OAuth endpoint
-    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/oauth/google`;
+    authService.initiateGoogleOAuth();
   };
 
   return (

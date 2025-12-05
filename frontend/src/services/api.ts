@@ -30,7 +30,9 @@ apiClient.interceptors.response.use(
   },
   (error: AxiosError) => {
     if (error.response?.status === 401) {
+      // Clear both tokens on auth error
       localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
       window.location.href = '/login';
     }
     return Promise.reject(error);

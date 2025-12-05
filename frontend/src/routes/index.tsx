@@ -4,6 +4,7 @@ import HomePage from '../pages/HomePage';
 import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
 import EmailVerificationPage from '../pages/EmailVerificationPage';
+import OAuthCallbackPage from '../pages/OAuthCallbackPage';
 import DashboardPage from '../pages/DashboardPage';
 import NotFoundPage from '../pages/NotFoundPage';
 
@@ -27,6 +28,10 @@ export const router = createBrowserRouter([
       {
         path: 'verify-email',
         element: <EmailVerificationPage />,
+      },
+      {
+        path: 'auth/callback',
+        element: <OAuthCallbackPage />,
       },
       {
         path: 'dashboard',
