@@ -46,9 +46,9 @@ SUMMARY_EXIT_CODE=${PIPESTATUS[0]}
 echo "" | tee -a "$LOG_FILE"
 echo "Summary generation completed with exit code: $SUMMARY_EXIT_CODE" | tee -a "$LOG_FILE"
 
-# Phase 2: Send Email
+# Phase 2: Save Summary for Viewing
 echo "" | tee -a "$LOG_FILE"
-echo "Phase 2: Sending Email Summary..." | tee -a "$LOG_FILE"
+echo "Phase 2: Saving Summary..." | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
 cd "$SCRIPT_DIR"
@@ -59,23 +59,23 @@ LATEST_SUMMARY=$(ls -t summaries/summary-*.txt 2>/dev/null | head -1)
 if [ -n "$LATEST_SUMMARY" ] && [ -f "$LATEST_SUMMARY" ]; then
     echo "Found summary: $LATEST_SUMMARY" | tee -a "$LOG_FILE"
 
-    # Extract subject from summary or use default
-    SUBJECT="[LLM Tutor] Autonomous Dev Summary - $(date '+%Y-%m-%d %H:%M')"
+    # Create a "latest" symlink for easy access
+    ln -sf "$(basename "$LATEST_SUMMARY")" summaries/latest-summary.txt
 
-    # Send email
-    if command -v mail &> /dev/null; then
-        cat "$LATEST_SUMMARY" | mail -s "$SUBJECT" -r "$SUMMARY_EMAIL_FROM" "$SUMMARY_EMAIL_RECIPIENTS"
-        EMAIL_RESULT=$?
-
-        if [ $EMAIL_RESULT -eq 0 ]; then
-            echo "✓ Email sent successfully to: $SUMMARY_EMAIL_RECIPIENTS" | tee -a "$LOG_FILE"
-        else
-            echo "✗ Email sending failed with code: $EMAIL_RESULT" | tee -a "$LOG_FILE"
-        fi
-    else
-        echo "✗ mail command not available - saving summary but not sending email" | tee -a "$LOG_FILE"
-        echo "Summary saved at: $LATEST_SUMMARY" | tee -a "$LOG_FILE"
+    # Also copy to a web-accessible location if nginx is set up
+    if [ -d "/var/www/html" ]; then
+        sudo cp "$LATEST_SUMMARY" /var/www/html/latest-summary.txt 2>/dev/null || true
     fi
+
+    echo "✓ Summary saved and accessible at:" | tee -a "$LOG_FILE"
+    echo "  - $LATEST_SUMMARY" | tee -a "$LOG_FILE"
+    echo "  - summaries/latest-summary.txt (symlink)" | tee -a "$LOG_FILE"
+    echo "  - http://34.28.81.46/latest-summary.txt (if nginx configured)" | tee -a "$LOG_FILE"
+
+    # Display summary header
+    echo "" | tee -a "$LOG_FILE"
+    echo "Summary Preview:" | tee -a "$LOG_FILE"
+    head -20 "$LATEST_SUMMARY" | tee -a "$LOG_FILE"
 else
     echo "✗ No summary file found!" | tee -a "$LOG_FILE"
 fi
