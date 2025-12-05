@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 import time
+import threading
 
 from ..utils.logger import get_logger, log_database_query
 
@@ -198,8 +199,9 @@ class DatabaseManager:
             logger.info("Sync database engine disposed")
 
 
-# Global database manager instance
+# Global database manager instance and thread lock
 _db_manager: Optional[DatabaseManager] = None
+_db_lock = threading.Lock()
 
 
 def init_database(
@@ -208,7 +210,7 @@ def init_database(
     max_overflow: int = 10,
 ) -> DatabaseManager:
     """
-    Initialize global database manager.
+    Initialize global database manager (thread-safe).
 
     Args:
         database_url: PostgreSQL connection URL
@@ -219,12 +221,16 @@ def init_database(
         Initialized DatabaseManager instance
     """
     global _db_manager
-    _db_manager = DatabaseManager(
-        database_url=database_url,
-        pool_size=pool_size,
-        max_overflow=max_overflow,
-    )
-    logger.info("Global database manager initialized")
+
+    with _db_lock:
+        if _db_manager is None:
+            _db_manager = DatabaseManager(
+                database_url=database_url,
+                pool_size=pool_size,
+                max_overflow=max_overflow,
+            )
+            logger.info("Global database manager initialized")
+
     return _db_manager
 
 

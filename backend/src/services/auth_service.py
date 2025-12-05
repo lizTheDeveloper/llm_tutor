@@ -296,6 +296,11 @@ class AuthService:
 
             await redis_manager.set_cache(session_key, session_data, expiration)
 
+            # Track this session in user's session set
+            user_sessions_key = f"user_sessions:{user_id}"
+            await redis_manager.async_client.sadd(user_sessions_key, refresh_payload["jti"])
+            await redis_manager.async_client.expire(user_sessions_key, expiration)
+
             # Also store access token JTI for quick validation
             access_key = f"access_token:{access_payload['jti']}"
             await redis_manager.set_cache(
@@ -384,6 +389,10 @@ class AuthService:
                 session_key = f"session:{user_id}:{payload['jti']}"
                 await redis_manager.delete_cache(session_key)
 
+                # Remove from user's session set
+                user_sessions_key = f"user_sessions:{user_id}"
+                await redis_manager.async_client.srem(user_sessions_key, payload["jti"])
+
             logger.info(
                 "Session invalidated",
                 extra={"user_id": user_id, "token_type": payload.get("type")},
@@ -393,6 +402,61 @@ class AuthService:
 
         except Exception as exception:
             logger.error("Failed to invalidate session", exc_info=True)
+            return False
+
+    @staticmethod
+    async def invalidate_all_user_sessions(user_id: int) -> bool:
+        """
+        Invalidate all sessions for a user.
+        Used when password is reset or account security is compromised.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            True if all sessions invalidated successfully
+        """
+        try:
+            redis_manager = get_redis()
+
+            # Get all session JTIs for this user
+            user_sessions_key = f"user_sessions:{user_id}"
+            session_jtis = await redis_manager.async_client.smembers(user_sessions_key)
+
+            if not session_jtis:
+                logger.info(
+                    "No active sessions to invalidate",
+                    extra={"user_id": user_id},
+                )
+                return True
+
+            # Delete all sessions and tokens
+            for jti in session_jtis:
+                session_key = f"session:{user_id}:{jti}"
+                access_key = f"access_token:{jti}"
+
+                await redis_manager.delete_cache(session_key)
+                await redis_manager.delete_cache(access_key)
+
+            # Clear the user sessions set
+            await redis_manager.async_client.delete(user_sessions_key)
+
+            logger.info(
+                "All user sessions invalidated",
+                extra={
+                    "user_id": user_id,
+                    "sessions_count": len(session_jtis),
+                },
+            )
+
+            return True
+
+        except Exception as exception:
+            logger.error(
+                "Failed to invalidate all user sessions",
+                exc_info=True,
+                extra={"user_id": user_id, "exception": str(exception)},
+            )
             return False
 
     @staticmethod

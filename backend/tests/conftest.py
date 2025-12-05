@@ -122,16 +122,32 @@ async def mock_auth_tokens():
 async def patched_get_session(db_session):
     """
     Patch get_session to return test database session.
+    Mock commit() to use flush() instead to keep transaction open for test verification.
     """
-    from unittest.mock import patch
+    from unittest.mock import patch, AsyncMock
     from contextlib import asynccontextmanager
+
+    # Store original flush method
+    original_flush = db_session.flush
+    original_commit = db_session.commit
+
+    # Mock commit to just flush (keep transaction open)
+    async def mock_commit():
+        await original_flush()
+
+    db_session.commit = mock_commit
 
     @asynccontextmanager
     async def mock_get_session():
         yield db_session
 
-    with patch('src.api.auth.get_session', side_effect=mock_get_session):
+    with patch('src.api.auth.get_session', side_effect=mock_get_session), \
+         patch('src.api.chat.get_session', side_effect=mock_get_session), \
+         patch('src.api.users.get_session', side_effect=mock_get_session):
         yield
+
+    # Restore original commit
+    db_session.commit = original_commit
 
 
 @pytest.fixture

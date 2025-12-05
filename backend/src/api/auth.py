@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from src.logging_config import get_logger
 from src.middleware.error_handler import APIError
 from src.middleware.auth_middleware import require_auth, get_current_user_id
+from src.middleware.rate_limiter import rate_limit
 from src.services.auth_service import AuthService
 from src.services.email_service import get_email_service
 from src.services.oauth_service import OAuthService
@@ -21,6 +22,7 @@ auth_bp = Blueprint("auth", __name__)
 
 
 @auth_bp.route("/register", methods=["POST"])
+@rate_limit(requests_per_minute=5, requests_per_hour=20)
 async def register() -> Dict[str, Any]:
     """
     Register a new user with email and password.
@@ -73,10 +75,14 @@ async def register() -> Dict[str, Any]:
                 "Registration attempt with existing email",
                 extra={"email": email},
             )
-            raise APIError(
-                "User with this email already exists",
-                status_code=409,
-            )
+            # Don't reveal that user exists - return same message as success
+            # This prevents email enumeration attacks
+            return jsonify({
+                "message": "Registration successful. Please check your email to verify your account.",
+                "user": {
+                    "email": email,
+                },
+            }), 201
 
         # Create new user
         new_user = User(
@@ -126,6 +132,7 @@ async def register() -> Dict[str, Any]:
 
 
 @auth_bp.route("/login", methods=["POST"])
+@rate_limit(requests_per_minute=10, requests_per_hour=100)
 async def login() -> Dict[str, Any]:
     """
     Login with email and password.
@@ -242,11 +249,13 @@ async def oauth_github() -> Dict[str, Any]:
     Returns:
         Redirect to GitHub authorization URL
     """
+    from src.config import settings
+
     # Generate OAuth state for CSRF protection
     state = await OAuthService.generate_oauth_state("github")
 
-    # Build redirect URI (in production, this should come from config)
-    redirect_uri = "http://localhost:5000/api/v1/auth/oauth/github/callback"
+    # Build redirect URI from config
+    redirect_uri = f"{settings.backend_url}/api/v1/auth/oauth/github/callback"
 
     # Get authorization URL
     auth_url = OAuthService.get_github_authorization_url(state, redirect_uri)
@@ -267,10 +276,17 @@ async def oauth_github_callback() -> Dict[str, Any]:
         state: State parameter for CSRF protection
 
     Returns:
-        Redirect to frontend with tokens
+        Redirect to frontend with authorization code (NOT tokens)
     """
+    from src.config import settings
+
     code = request.args.get("code")
     state = request.args.get("state")
+    error = request.args.get("error")
+
+    if error:
+        logger.warning("GitHub OAuth error", extra={"error": error})
+        return redirect(f"{settings.frontend_url}/login?error=oauth_failed")
 
     if not code or not state:
         raise APIError("Missing OAuth parameters", status_code=400)
@@ -278,56 +294,104 @@ async def oauth_github_callback() -> Dict[str, Any]:
     # Verify state parameter
     await OAuthService.verify_oauth_state(state, "github")
 
-    # Exchange code for access token
-    redirect_uri = "http://localhost:5000/api/v1/auth/oauth/github/callback"
-    github_access_token = await OAuthService.exchange_github_code(code, redirect_uri)
+    # Store the authorization code temporarily in Redis for exchange
+    temp_code = AuthService.generate_verification_token()
+    await AuthService.store_verification_token(
+        f"oauth_github_{code}",
+        temp_code,
+        expiration=300  # 5 minutes
+    )
 
-    # Get user info from GitHub
-    github_profile = await OAuthService.get_github_user_info(github_access_token)
+    # Redirect to frontend with temporary code (NOT actual tokens)
+    return redirect(f"{settings.frontend_url}/auth/callback?code={temp_code}&provider=github")
 
-    if not github_profile.get("email"):
-        raise APIError(
-            "GitHub account must have a verified email address",
-            status_code=400,
-        )
+
+@auth_bp.route("/oauth/exchange", methods=["POST"])
+async def oauth_exchange_code() -> Dict[str, Any]:
+    """
+    Exchange temporary OAuth code for JWT tokens.
+    Called by frontend after OAuth callback redirect.
+
+    Request Body:
+        {
+            "code": "temporary_code",
+            "provider": "github" or "google"
+        }
+
+    Returns:
+        JSON response with JWT tokens
+    """
+    from src.config import settings
+
+    data = await request.get_json()
+    temp_code = data.get("code")
+    provider = data.get("provider")
+
+    if not temp_code or provider not in ["github", "google"]:
+        raise APIError("Invalid code or provider", status_code=400)
+
+    # Retrieve original OAuth code from Redis
+    stored_data = await AuthService.verify_verification_token(temp_code)
+    if not stored_data:
+        raise APIError("Invalid or expired code", status_code=400)
+
+    # Extract the real OAuth code
+    oauth_code_key = stored_data.replace(f"oauth_{provider}_", "")
+
+    # Exchange code for access token based on provider
+    redirect_uri = f"{settings.backend_url}/api/v1/auth/oauth/{provider}/callback"
+
+    if provider == "github":
+        oauth_access_token = await OAuthService.exchange_github_code(oauth_code_key, redirect_uri)
+        oauth_profile = await OAuthService.get_github_user_info(oauth_access_token)
+        id_field = "github_id"
+    else:  # google
+        oauth_access_token = await OAuthService.exchange_google_code(oauth_code_key, redirect_uri)
+        oauth_profile = await OAuthService.get_google_user_info(oauth_access_token)
+        id_field = "google_id"
+
+    if not oauth_profile.get("email"):
+        raise APIError(f"{provider.title()} account must have a verified email address", status_code=400)
 
     # Create or update user in database
     async with get_session() as session:
-        # Check if user exists with this GitHub ID
-        result = await session.execute(
-            select(User).where(User.github_id == github_profile["github_id"])
-        )
+        # Check if user exists with this OAuth ID
+        filter_clause = getattr(User, id_field) == oauth_profile[id_field]
+        result = await session.execute(select(User).where(filter_clause))
         user = result.scalar_one_or_none()
 
         if not user:
             # Check if user exists with this email
             result = await session.execute(
-                select(User).where(User.email == github_profile["email"])
+                select(User).where(User.email == oauth_profile["email"])
             )
             user = result.scalar_one_or_none()
 
             if user:
-                # Link GitHub account to existing user
-                user.github_id = github_profile["github_id"]
-                user.oauth_provider = "github"
+                # Link OAuth account to existing user
+                setattr(user, id_field, oauth_profile[id_field])
+                user.oauth_provider = provider
                 if not user.avatar_url:
-                    user.avatar_url = github_profile.get("avatar_url")
-                logger.info("GitHub account linked to existing user", extra={"user_id": user.id})
+                    user.avatar_url = oauth_profile.get("avatar_url")
+                logger.info(f"{provider.title()} account linked to existing user", extra={"user_id": user.id})
             else:
                 # Create new user
-                user = User(
-                    email=github_profile["email"],
-                    github_id=github_profile["github_id"],
-                    oauth_provider="github",
-                    name=github_profile["name"],
-                    avatar_url=github_profile.get("avatar_url"),
-                    bio=github_profile.get("bio"),
-                    email_verified=True,  # GitHub emails are verified
-                    role=UserRole.STUDENT,
-                    is_active=True,
-                )
+                user_data = {
+                    "email": oauth_profile["email"],
+                    "oauth_provider": provider,
+                    "name": oauth_profile["name"],
+                    "avatar_url": oauth_profile.get("avatar_url"),
+                    "email_verified": True,
+                    "role": UserRole.STUDENT,
+                    "is_active": True,
+                }
+                user_data[id_field] = oauth_profile[id_field]
+                if provider == "github" and oauth_profile.get("bio"):
+                    user_data["bio"] = oauth_profile["bio"]
+
+                user = User(**user_data)
                 session.add(user)
-                logger.info("New user created via GitHub OAuth", extra={"email": github_profile["email"]})
+                logger.info(f"New user created via {provider.title()} OAuth", extra={"email": oauth_profile["email"]})
 
         await session.flush()
         await session.refresh(user)
@@ -354,12 +418,19 @@ async def oauth_github_callback() -> Dict[str, Any]:
         user.last_login = datetime.utcnow()
         await session.flush()
 
-        logger.info("GitHub OAuth successful", extra={"user_id": user.id})
+        logger.info(f"{provider.title()} OAuth exchange successful", extra={"user_id": user.id})
 
-        # Redirect to frontend with tokens
-        # In production, encode tokens in URL or use a different flow
-        frontend_url = f"http://localhost:3000/auth/callback?access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}"
-        return redirect(frontend_url)
+        return jsonify({
+            "message": "OAuth authentication successful",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "name": user.name,
+                "role": user.role.value,
+                "email_verified": user.email_verified,
+            },
+            **tokens,
+        }), 200
 
 
 @auth_bp.route("/oauth/google", methods=["GET"])
@@ -370,11 +441,13 @@ async def oauth_google() -> Dict[str, Any]:
     Returns:
         Redirect to Google authorization URL
     """
+    from src.config import settings
+
     # Generate OAuth state for CSRF protection
     state = await OAuthService.generate_oauth_state("google")
 
-    # Build redirect URI
-    redirect_uri = "http://localhost:5000/api/v1/auth/oauth/google/callback"
+    # Build redirect URI from config
+    redirect_uri = f"{settings.backend_url}/api/v1/auth/oauth/google/callback"
 
     # Get authorization URL
     auth_url = OAuthService.get_google_authorization_url(state, redirect_uri)
@@ -395,10 +468,17 @@ async def oauth_google_callback() -> Dict[str, Any]:
         state: State parameter for CSRF protection
 
     Returns:
-        Redirect to frontend with tokens
+        Redirect to frontend with authorization code (NOT tokens)
     """
+    from src.config import settings
+
     code = request.args.get("code")
     state = request.args.get("state")
+    error = request.args.get("error")
+
+    if error:
+        logger.warning("Google OAuth error", extra={"error": error})
+        return redirect(f"{settings.frontend_url}/login?error=oauth_failed")
 
     if not code or not state:
         raise APIError("Missing OAuth parameters", status_code=400)
@@ -406,86 +486,16 @@ async def oauth_google_callback() -> Dict[str, Any]:
     # Verify state parameter
     await OAuthService.verify_oauth_state(state, "google")
 
-    # Exchange code for access token
-    redirect_uri = "http://localhost:5000/api/v1/auth/oauth/google/callback"
-    google_access_token = await OAuthService.exchange_google_code(code, redirect_uri)
+    # Store the authorization code temporarily in Redis for exchange
+    temp_code = AuthService.generate_verification_token()
+    await AuthService.store_verification_token(
+        f"oauth_google_{code}",
+        temp_code,
+        expiration=300  # 5 minutes
+    )
 
-    # Get user info from Google
-    google_profile = await OAuthService.get_google_user_info(google_access_token)
-
-    if not google_profile.get("email"):
-        raise APIError(
-            "Google account must have an email address",
-            status_code=400,
-        )
-
-    # Create or update user in database
-    async with get_session() as session:
-        # Check if user exists with this Google ID
-        result = await session.execute(
-            select(User).where(User.google_id == google_profile["google_id"])
-        )
-        user = result.scalar_one_or_none()
-
-        if not user:
-            # Check if user exists with this email
-            result = await session.execute(
-                select(User).where(User.email == google_profile["email"])
-            )
-            user = result.scalar_one_or_none()
-
-            if user:
-                # Link Google account to existing user
-                user.google_id = google_profile["google_id"]
-                user.oauth_provider = "google"
-                if not user.avatar_url:
-                    user.avatar_url = google_profile.get("avatar_url")
-                logger.info("Google account linked to existing user", extra={"user_id": user.id})
-            else:
-                # Create new user
-                user = User(
-                    email=google_profile["email"],
-                    google_id=google_profile["google_id"],
-                    oauth_provider="google",
-                    name=google_profile["name"],
-                    avatar_url=google_profile.get("avatar_url"),
-                    email_verified=google_profile.get("email_verified", True),
-                    role=UserRole.STUDENT,
-                    is_active=True,
-                )
-                session.add(user)
-                logger.info("New user created via Google OAuth", extra={"email": google_profile["email"]})
-
-        await session.flush()
-        await session.refresh(user)
-
-        # Generate JWT tokens
-        tokens = AuthService.generate_token_pair(
-            user_id=user.id,
-            email=user.email,
-            role=user.role.value,
-        )
-
-        # Create session
-        await AuthService.create_session(
-            user_id=user.id,
-            access_token=tokens["access_token"],
-            refresh_token=tokens["refresh_token"],
-            user_data={
-                "name": user.name,
-                "email_verified": user.email_verified,
-            },
-        )
-
-        # Update last login
-        user.last_login = datetime.utcnow()
-        await session.flush()
-
-        logger.info("Google OAuth successful", extra={"user_id": user.id})
-
-        # Redirect to frontend with tokens
-        frontend_url = f"http://localhost:3000/auth/callback?access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}"
-        return redirect(frontend_url)
+    # Redirect to frontend with temporary code (NOT actual tokens)
+    return redirect(f"{settings.frontend_url}/auth/callback?code={temp_code}&provider=google")
 
 
 @auth_bp.route("/refresh", methods=["POST"])
@@ -615,6 +625,7 @@ async def verify_email() -> Dict[str, Any]:
 
 
 @auth_bp.route("/password-reset", methods=["POST"])
+@rate_limit(requests_per_minute=3, requests_per_hour=10)
 async def request_password_reset() -> Dict[str, Any]:
     """
     Request password reset email.
@@ -668,6 +679,7 @@ async def request_password_reset() -> Dict[str, Any]:
 
 
 @auth_bp.route("/password-reset/confirm", methods=["POST"])
+@rate_limit(requests_per_minute=3, requests_per_hour=10)
 async def confirm_password_reset() -> Dict[str, Any]:
     """
     Reset password with token.
@@ -717,8 +729,12 @@ async def confirm_password_reset() -> Dict[str, Any]:
 
         logger.info("Password reset successful", extra={"user_id": user.id, "email": email})
 
-        # TODO: Invalidate all existing sessions for this user
-        # This would require iterating through Redis sessions or implementing a user session tracking system
+        # Invalidate all existing sessions for this user (security best practice)
+        await AuthService.invalidate_all_user_sessions(user.id)
+        logger.info(
+            "All sessions invalidated after password reset",
+            extra={"user_id": user.id},
+        )
 
         return jsonify({
             "message": "Password reset successful. Please login with your new password."

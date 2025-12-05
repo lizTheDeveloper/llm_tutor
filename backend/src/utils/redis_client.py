@@ -4,6 +4,7 @@ Provides Redis connection pooling for caching and session management.
 """
 from typing import Optional, Any
 import json
+import threading
 from redis import Redis
 from redis.asyncio import Redis as AsyncRedis
 from redis.connection import ConnectionPool
@@ -289,8 +290,9 @@ class RedisManager:
             logger.info("Session Redis client closed")
 
 
-# Global Redis manager instance
+# Global Redis manager instance and thread lock
 _redis_manager: Optional[RedisManager] = None
+_redis_lock = threading.Lock()
 
 
 def init_redis(
@@ -298,7 +300,7 @@ def init_redis(
     session_db: int = 1,
 ) -> RedisManager:
     """
-    Initialize global Redis manager.
+    Initialize global Redis manager (thread-safe).
 
     Args:
         redis_url: Redis connection URL
@@ -308,11 +310,15 @@ def init_redis(
         Initialized RedisManager instance
     """
     global _redis_manager
-    _redis_manager = RedisManager(
-        redis_url=redis_url,
-        session_db=session_db,
-    )
-    logger.info("Global Redis manager initialized")
+
+    with _redis_lock:
+        if _redis_manager is None:
+            _redis_manager = RedisManager(
+                redis_url=redis_url,
+                session_db=session_db,
+            )
+            logger.info("Global Redis manager initialized")
+
     return _redis_manager
 
 

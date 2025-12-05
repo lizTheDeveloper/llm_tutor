@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = Field(default="http://localhost:3000", env="CORS_ORIGINS")
 
+    # URLs
+    frontend_url: str = Field(default="http://localhost:3000", env="FRONTEND_URL")
+    backend_url: str = Field(default="http://localhost:5000", env="BACKEND_URL")
+
     # Security
     bcrypt_rounds: int = Field(default=12, env="BCRYPT_ROUNDS")
     password_min_length: int = Field(default=12, env="PASSWORD_MIN_LENGTH")
@@ -98,7 +102,28 @@ class Settings(BaseSettings):
 
 def get_settings() -> Settings:
     """Get application settings singleton."""
-    return Settings()
+    settings = Settings()
+
+    # Validate critical settings at startup
+    critical_fields = {
+        "secret_key": "SECRET_KEY",
+        "jwt_secret_key": "JWT_SECRET_KEY",
+        "database_url": "DATABASE_URL",
+        "redis_url": "REDIS_URL",
+    }
+
+    missing = []
+    for field, env_var in critical_fields.items():
+        value = getattr(settings, field, None)
+        if not value or (isinstance(value, str) and value.strip() == ""):
+            missing.append(env_var)
+
+    if missing:
+        raise ValueError(
+            f"Missing required environment variables: {', '.join(missing)}"
+        )
+
+    return settings
 
 
 # Global settings instance

@@ -47,8 +47,8 @@ class User(Base):
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # OAuth
-    github_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True)
-    google_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True)
+    github_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    google_id: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
     oauth_provider: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     # Profile
@@ -79,7 +79,7 @@ class User(Base):
     current_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     longest_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     exercises_completed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    last_exercise_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_exercise_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
     # Onboarding
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -88,7 +88,8 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
-        nullable=False
+        nullable=False,
+        index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

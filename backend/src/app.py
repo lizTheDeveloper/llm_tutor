@@ -150,9 +150,12 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
 
         # Check database connectivity
         try:
+            from sqlalchemy import text
+
             db_manager = get_database()
-            db_healthy = db_manager.sync_engine.connect().closed == False
-            health_status["database"] = "connected" if db_healthy else "disconnected"
+            with db_manager.sync_engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            health_status["database"] = "connected"
         except Exception as exception:
             logger.error(
                 "Database health check failed",
@@ -201,6 +204,11 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
                 },
             }
         )
+
+    # Register security headers middleware
+    from .middleware.security_headers import add_security_headers, add_request_size_limit
+    add_security_headers(app)
+    add_request_size_limit(app, max_size=16 * 1024 * 1024)  # 16MB limit
 
     # Register error handlers
     from .middleware.error_handler import register_error_handlers
