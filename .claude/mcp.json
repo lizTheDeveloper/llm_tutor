@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "nats-chat": {
+      "command": "node",
+      "args": [
+        "nats-chat/dist/index.js"
+      ],
+      "cwd": "/Users/annhoward/src/llm_tutor",
+      "env": {}
+    }
+  }
+}
