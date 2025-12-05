@@ -2,6 +2,30 @@
 
 This directory contains infrastructure-as-code for deploying the CodeMentor LLM Coding Tutor Platform on Google Cloud Platform.
 
+## Deployment Options
+
+### Option 1: VM Deployment (Recommended for Cost) 💰
+**~$7-14/month** - Single Compute Engine VM with Nginx reverse proxy
+
+Perfect for:
+- MVP and development
+- Predictable costs
+- Low to moderate traffic
+
+📖 **See [VM-DEPLOYMENT.md](./VM-DEPLOYMENT.md) for complete guide**
+
+### Option 2: Cloud Run (Serverless) 🚀
+**Variable pricing** - Serverless container deployment with auto-scaling
+
+Perfect for:
+- High scalability needs
+- Variable traffic patterns
+- Zero maintenance
+
+📖 **See Cloud Run section below**
+
+---
+
 ## Architecture Overview
 
 ```

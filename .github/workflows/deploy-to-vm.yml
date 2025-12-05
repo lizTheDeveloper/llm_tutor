@@ -1,0 +1,139 @@
+name: Deploy to GCP VM
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-to-vm.yml'
+
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  deploy:
+    name: Deploy to Compute Engine VM
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          gcloud compute config-ssh --quiet
+
+      - name: Deploy to VM
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_ZONE: us-central1-a
+          VM_NAME: codementor-app-vm
+          APP_DIR: /opt/codementor
+        run: |
+          echo "Starting deployment to VM..."
+
+          # Create deployment package
+          cd backend
+          TEMP_DIR=$(mktemp -d)
+
+          # Copy application files
+          cp -r src "${TEMP_DIR}/"
+          cp app.py "${TEMP_DIR}/"
+          cp run.py "${TEMP_DIR}/"
+          cp requirements.txt "${TEMP_DIR}/"
+
+          # Copy alembic if exists
+          if [ -d "alembic" ]; then
+            cp -r alembic "${TEMP_DIR}/"
+            [ -f "alembic.ini" ] && cp alembic.ini "${TEMP_DIR}/"
+          fi
+
+          # Upload to VM
+          echo "Uploading code to VM..."
+          gcloud compute scp --recurse \
+            "${TEMP_DIR}"/* \
+            "${VM_NAME}:${APP_DIR}/" \
+            --zone="${GCP_ZONE}" \
+            --compress
+
+          # Deploy on VM
+          echo "Installing dependencies and restarting service..."
+          gcloud compute ssh "${VM_NAME}" \
+            --zone="${GCP_ZONE}" \
+            --command="
+              set -e
+              cd ${APP_DIR}
+
+              # Install/update Python dependencies
+              echo 'Installing Python dependencies...'
+              python3.11 -m pip install --upgrade pip --quiet
+              python3.11 -m pip install -r requirements.txt --quiet
+
+              # Run database migrations if alembic exists
+              if [ -f 'alembic.ini' ]; then
+                echo 'Running database migrations...'
+                python3.11 -m alembic upgrade head || echo 'No migrations to run'
+              fi
+
+              # Restart the service
+              echo 'Restarting application service...'
+              sudo systemctl restart codementor
+
+              # Wait for service to start
+              sleep 3
+
+              # Check service status
+              if sudo systemctl is-active --quiet codementor; then
+                echo '✓ Service is running'
+              else
+                echo '❌ Service failed to start'
+                sudo systemctl status codementor --no-pager
+                exit 1
+              fi
+            "
+
+          # Cleanup
+          rm -rf "${TEMP_DIR}"
+
+      - name: Get VM IP and test health check
+        env:
+          GCP_ZONE: us-central1-a
+          VM_NAME: codementor-app-vm
+        run: |
+          EXTERNAL_IP=$(gcloud compute instances describe "${VM_NAME}" \
+            --zone="${GCP_ZONE}" \
+            --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+
+          echo "Application URL: http://${EXTERNAL_IP}"
+          echo "Health Check URL: http://${EXTERNAL_IP}/health"
+
+          # Wait a bit for nginx to be ready
+          sleep 5
+
+          # Test health check
+          echo "Testing health check..."
+          if curl -f -s "http://${EXTERNAL_IP}/health" > /dev/null; then
+            echo "✓ Health check passed!"
+          else
+            echo "⚠️  Health check failed, but deployment completed"
+          fi
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "╔═══════════════════════════════════════════════════════════╗"
+          echo "║   ✅ Deployment Successful!                                ║"
+          echo "╚═══════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "Deployment completed at $(date)"

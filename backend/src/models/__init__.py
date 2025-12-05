@@ -10,6 +10,7 @@ from src.models.exercise import Exercise, UserExercise, ExerciseType, ExerciseDi
 from src.models.conversation import Conversation, Message, MessageRole
 from src.models.user_memory import UserMemory
 from src.models.achievement import Achievement, UserAchievement, AchievementCategory
+from src.models.interaction_log import InteractionLog
 
 __all__ = [
     "Base",
@@ -31,4 +32,5 @@ __all__ = [
     "Achievement",
     "UserAchievement",
     "AchievementCategory",
+    "InteractionLog",
 ]

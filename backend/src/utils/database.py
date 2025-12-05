@@ -92,7 +92,6 @@ class DatabaseManager:
             )
             self._async_engine = create_async_engine(
                 async_url,
-                poolclass=QueuePool,
                 pool_size=self.pool_size,
                 max_overflow=self.max_overflow,
                 pool_pre_ping=self.pool_pre_ping,
@@ -246,6 +245,7 @@ def get_database() -> DatabaseManager:
     return _db_manager
 
 
+@asynccontextmanager
 async def get_async_db_session():
     """
     Dependency injection function for Quart routes to get async database session.

@@ -87,3 +87,59 @@ async def client(app):
     """
     async with app.test_client() as test_client:
         yield test_client
+
+
+@pytest.fixture
+def mock_email_service():
+    """
+    Create a mock email service for testing.
+    """
+    from unittest.mock import AsyncMock, patch
+
+    mock_service = AsyncMock()
+    mock_service.send_verification_email = AsyncMock()
+    mock_service.send_welcome_email = AsyncMock()
+    mock_service.send_password_reset_email = AsyncMock()
+
+    with patch('src.api.auth.get_email_service', return_value=mock_service):
+        with patch('src.services.email_service.get_email_service', return_value=mock_service):
+            yield mock_service
+
+
+@pytest.fixture
+async def mock_auth_tokens():
+    """
+    Mock auth service token storage methods.
+    """
+    from unittest.mock import AsyncMock, patch
+
+    with patch('src.services.auth_service.AuthService.store_verification_token', new_callable=AsyncMock) as mock_verify, \
+         patch('src.services.auth_service.AuthService.store_password_reset_token', new_callable=AsyncMock) as mock_reset:
+        yield {'verify': mock_verify, 'reset': mock_reset}
+
+
+@pytest.fixture
+async def patched_get_session(db_session):
+    """
+    Patch get_session to return test database session.
+    """
+    from unittest.mock import patch
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def mock_get_session():
+        yield db_session
+
+    with patch('src.api.auth.get_session', side_effect=mock_get_session):
+        yield
+
+
+@pytest.fixture
+def mock_auth_session():
+    """
+    Mock auth service create_session method.
+    """
+    from unittest.mock import AsyncMock, patch
+
+    with patch('src.services.auth_service.AuthService.create_session', new_callable=AsyncMock) as mock_session:
+        yield mock_session

@@ -262,12 +262,11 @@ class ContextManager:
         Returns:
             Trimmed list of messages
         """
-        # Always keep the most recent messages
-        if len(messages) <= self.max_context_messages:
-            return messages
-
-        # Keep the most recent max_context_messages
-        trimmed = messages[-self.max_context_messages:]
+        # Start with all messages or trim by message count
+        if len(messages) > self.max_context_messages:
+            trimmed = messages[-self.max_context_messages:]
+        else:
+            trimmed = messages
 
         # Rough token estimation (4 chars per token)
         total_chars = sum(len(msg.content) for msg in trimmed)
@@ -276,7 +275,7 @@ class ContextManager:
 
         estimated_tokens = total_chars // 4
 
-        # If still over token limit, further trim
+        # Trim based on token limit
         while estimated_tokens > self.max_context_tokens and len(trimmed) > 1:
             trimmed = trimmed[1:]  # Remove oldest message
             total_chars = sum(len(msg.content) for msg in trimmed)
