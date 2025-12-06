@@ -1,8 +1,20 @@
+/**
+ * Redux slice for chat management.
+ *
+ * Security Updates (SEC-1-FE):
+ * - Uses apiClient with cookie-based authentication
+ * - NO localStorage token usage (prevents XSS attacks)
+ * - withCredentials: true ensures httpOnly cookies are sent
+ *
+ * Related: SEC-1 Security Hardening (backend httpOnly cookies)
+ */
+
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// Cookie-based auth: apiClient handles authentication automatically
+// Cookies are sent with withCredentials: true, no manual header injection needed
+import apiClient from '../../services/api';
 
 // Types
 export interface Message {
@@ -34,17 +46,6 @@ export interface ChatState {
   error: string | null;
 }
 
-// API client setup
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('access_token');
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  };
-};
-
 // Async Thunks
 export const sendMessage = createAsyncThunk(
   'chat/sendMessage',
@@ -53,13 +54,12 @@ export const sendMessage = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/chat/message`,
+      const response = await apiClient.post(
+        '/chat/message',
         {
           message,
           conversation_id: conversationId,
-        },
-        getAuthHeaders()
+        }
       );
 
       return {
@@ -82,10 +82,7 @@ export const fetchConversations = createAsyncThunk(
   'chat/fetchConversations',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/chat/conversations`,
-        getAuthHeaders()
-      );
+      const response = await apiClient.get('/chat/conversations');
 
       return response.data.conversations;
     } catch (error: any) {
@@ -100,9 +97,8 @@ export const fetchConversation = createAsyncThunk(
   'chat/fetchConversation',
   async (conversationId: number, { rejectWithValue }) => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/chat/conversations/${conversationId}`,
-        getAuthHeaders()
+      const response = await apiClient.get(
+        `/chat/conversations/${conversationId}`
       );
 
       return {
@@ -121,9 +117,8 @@ export const deleteConversation = createAsyncThunk(
   'chat/deleteConversation',
   async (conversationId: number, { rejectWithValue }) => {
     try {
-      await axios.delete(
-        `${API_BASE_URL}/chat/conversations/${conversationId}`,
-        getAuthHeaders()
+      await apiClient.delete(
+        `/chat/conversations/${conversationId}`
       );
 
       return conversationId;

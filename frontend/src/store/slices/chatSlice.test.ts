@@ -21,11 +21,20 @@ import chatReducer, {
   ChatState,
 } from './chatSlice';
 import { configureStore } from '@reduxjs/toolkit';
-import axios from 'axios';
 
-// Mock axios
-vi.mock('axios');
-const mockedAxios = vi.mocked(axios, true);
+// Mock apiClient
+vi.mock('../../services/api', () => ({
+  default: {
+    get: vi.fn(),
+    post: vi.fn(),
+    delete: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+  },
+}));
+
+import apiClient from '../../services/api';
+const mockedApiClient = vi.mocked(apiClient);
 
 describe('chatSlice', () => {
   let store: ReturnType<typeof configureStore>;
@@ -40,9 +49,6 @@ describe('chatSlice', () => {
         chat: chatReducer,
       },
     });
-
-    // Mock axios create to return mocked axios instance
-    mockedAxios.create = vi.fn(() => mockedAxios as any);
   });
 
   describe('initial state', () => {
@@ -126,7 +132,7 @@ describe('chatSlice', () => {
     });
 
     it('should send message successfully without conversation_id', async () => {
-      mockedAxios.post = vi.fn().mockResolvedValue({
+      mockedApiClient.post = vi.fn().mockResolvedValue({
         data: mockResponse,
         status: 200,
       });
@@ -156,7 +162,7 @@ describe('chatSlice', () => {
       // Set initial conversation
       store.dispatch(setCurrentConversation(mockConversationId));
 
-      mockedAxios.post = vi.fn().mockResolvedValue({
+      mockedApiClient.post = vi.fn().mockResolvedValue({
         data: mockResponse,
         status: 200,
       });
@@ -175,19 +181,18 @@ describe('chatSlice', () => {
       expect(state.sending).toBe(false);
 
       // Verify API was called with conversation_id
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        expect.stringContaining('/message'),
+      expect(mockedApiClient.post).toHaveBeenCalledWith(
+        '/chat/message',
         expect.objectContaining({
           message: mockMessage,
           conversation_id: mockConversationId,
-        }),
-        expect.any(Object)
+        })
       );
     });
 
     it('should handle send message error', async () => {
       const errorMessage = 'Failed to send message';
-      mockedAxios.post = vi.fn().mockRejectedValue({
+      mockedApiClient.post = vi.fn().mockRejectedValue({
         response: {
           data: { error: errorMessage },
           status: 500,
@@ -210,7 +215,7 @@ describe('chatSlice', () => {
         resolvePromise = resolve;
       });
 
-      mockedAxios.post = vi.fn().mockReturnValue(promise);
+      mockedApiClient.post = vi.fn().mockReturnValue(promise);
 
       const dispatchPromise = store.dispatch(
         sendMessage({ message: mockMessage })
@@ -265,7 +270,7 @@ describe('chatSlice', () => {
     });
 
     it('should fetch conversations successfully', async () => {
-      mockedAxios.get = vi.fn().mockResolvedValue({
+      mockedApiClient.get = vi.fn().mockResolvedValue({
         data: {
           conversations: mockConversations,
           total: 2,
@@ -286,7 +291,7 @@ describe('chatSlice', () => {
 
     it('should handle fetch conversations error', async () => {
       const errorMessage = 'Failed to fetch conversations';
-      mockedAxios.get = vi.fn().mockRejectedValue({
+      mockedApiClient.get = vi.fn().mockRejectedValue({
         response: {
           data: { error: errorMessage },
           status: 500,
@@ -339,7 +344,7 @@ describe('chatSlice', () => {
     });
 
     it('should fetch conversation messages successfully', async () => {
-      mockedAxios.get = vi.fn().mockResolvedValue({
+      mockedApiClient.get = vi.fn().mockResolvedValue({
         data: {
           conversation: {
             id: conversationId,
@@ -366,7 +371,7 @@ describe('chatSlice', () => {
 
     it('should handle fetch conversation error', async () => {
       const errorMessage = 'Conversation not found';
-      mockedAxios.get = vi.fn().mockRejectedValue({
+      mockedApiClient.get = vi.fn().mockRejectedValue({
         response: {
           data: { error: errorMessage },
           status: 404,
@@ -419,7 +424,7 @@ describe('chatSlice', () => {
         },
       ];
 
-      mockedAxios.get = vi.fn().mockResolvedValue({
+      mockedApiClient.get = vi.fn().mockResolvedValue({
         data: { conversations: mockConversations },
         status: 200,
       });
@@ -428,7 +433,7 @@ describe('chatSlice', () => {
     });
 
     it('should delete conversation successfully', async () => {
-      mockedAxios.delete = vi.fn().mockResolvedValue({
+      mockedApiClient.delete = vi.fn().mockResolvedValue({
         data: {
           message: 'Conversation deleted successfully',
           conversation_id: conversationId,
@@ -448,7 +453,7 @@ describe('chatSlice', () => {
 
     it('should handle delete conversation error', async () => {
       const errorMessage = 'Failed to delete conversation';
-      mockedAxios.delete = vi.fn().mockRejectedValue({
+      mockedApiClient.delete = vi.fn().mockRejectedValue({
         response: {
           data: { error: errorMessage },
           status: 500,

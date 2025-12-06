@@ -23,11 +23,20 @@ import progressReducer, {
   ProgressState,
 } from './progressSlice';
 import { configureStore } from '@reduxjs/toolkit';
-import axios from 'axios';
 
-// Mock axios
-vi.mock('axios');
-const mockedAxios = vi.mocked(axios, true);
+// Mock apiClient
+vi.mock('../../services/api', () => ({
+  default: {
+    get: vi.fn(),
+    post: vi.fn(),
+    delete: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+  },
+}));
+
+import apiClient from '../../services/api';
+const mockedApiClient = vi.mocked(apiClient);
 
 describe('progressSlice', () => {
   let store: ReturnType<typeof configureStore>;
@@ -42,9 +51,6 @@ describe('progressSlice', () => {
         progress: progressReducer,
       },
     });
-
-    // Mock axios create to return mocked axios instance
-    mockedAxios.create = vi.fn(() => mockedAxios as any);
   });
 
   describe('initial state', () => {
@@ -99,7 +105,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(mockResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(mockResponse);
 
       await store.dispatch(fetchProgressMetrics());
       const state = store.getState().progress;
@@ -107,12 +113,12 @@ describe('progressSlice', () => {
       expect(state.loading).toBe(false);
       expect(state.metrics).toEqual(mockResponse.data);
       expect(state.error).toBeNull();
-      expect(mockedAxios.get).toHaveBeenCalled();
+      expect(mockedApiClient.get).toHaveBeenCalled();
     });
 
     it('should handle fetch metrics error', async () => {
       const mockError = new Error('Failed to fetch metrics');
-      mockedAxios.get = vi.fn().mockRejectedValue(mockError);
+      mockedApiClient.get = vi.fn().mockRejectedValue(mockError);
 
       await store.dispatch(fetchProgressMetrics());
       const state = store.getState().progress;
@@ -124,7 +130,7 @@ describe('progressSlice', () => {
 
     it('should set loading state while fetching', async () => {
       const mockPromise = new Promise((resolve) => setTimeout(resolve, 100));
-      mockedAxios.get = vi.fn().mockReturnValue(mockPromise);
+      mockedApiClient.get = vi.fn().mockReturnValue(mockPromise);
 
       const dispatchPromise = store.dispatch(fetchProgressMetrics());
       const state = store.getState().progress;
@@ -194,7 +200,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(mockResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(mockResponse);
 
       await store.dispatch(fetchAchievements());
       const state = store.getState().progress;
@@ -205,7 +211,7 @@ describe('progressSlice', () => {
     });
 
     it('should handle fetch achievements error', async () => {
-      mockedAxios.get = vi.fn().mockRejectedValue(new Error('Achievements not found'));
+      mockedApiClient.get = vi.fn().mockRejectedValue(new Error('Achievements not found'));
 
       await store.dispatch(fetchAchievements());
       const state = store.getState().progress;
@@ -243,7 +249,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(mockResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(mockResponse);
 
       await store.dispatch(fetchProgressHistory({ days: 30 }));
       const state = store.getState().progress;
@@ -263,7 +269,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(mockResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(mockResponse);
 
       await store.dispatch(fetchProgressHistory({ days: 1 }));
       const state = store.getState().progress;
@@ -281,7 +287,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(mockResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(mockResponse);
 
       await store.dispatch(
         fetchProgressHistory({
@@ -321,7 +327,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(mockResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(mockResponse);
 
       await store.dispatch(fetchStatistics({ period: 'weekly' }));
       const state = store.getState().progress;
@@ -332,7 +338,7 @@ describe('progressSlice', () => {
     });
 
     it('should handle fetch statistics error', async () => {
-      mockedAxios.get = vi.fn().mockRejectedValue(new Error('Statistics unavailable'));
+      mockedApiClient.get = vi.fn().mockRejectedValue(new Error('Statistics unavailable'));
 
       await store.dispatch(fetchStatistics({ period: 'monthly' }));
       const state = store.getState().progress;
@@ -377,7 +383,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(mockResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(mockResponse);
 
       await store.dispatch(fetchBadges());
       const state = store.getState().progress;
@@ -388,7 +394,7 @@ describe('progressSlice', () => {
     });
 
     it('should handle fetch badges error', async () => {
-      mockedAxios.get = vi.fn().mockRejectedValue(new Error('Badges not available'));
+      mockedApiClient.get = vi.fn().mockRejectedValue(new Error('Badges not available'));
 
       await store.dispatch(fetchBadges());
       const state = store.getState().progress;
@@ -425,7 +431,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(mockResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(mockResponse);
 
       await store.dispatch(fetchSkillLevels());
       const state = store.getState().progress;
@@ -442,7 +448,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(mockResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(mockResponse);
 
       await store.dispatch(fetchSkillLevels());
       const state = store.getState().progress;
@@ -467,14 +473,14 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(mockResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(mockResponse);
 
       await store.dispatch(exportProgressData({ format: 'json' }));
       const state = store.getState().progress;
 
       expect(state.loading).toBe(false);
       expect(state.error).toBeNull();
-      expect(mockedAxios.get).toHaveBeenCalled();
+      expect(mockedApiClient.get).toHaveBeenCalled();
     });
 
     it('should export progress data as CSV', async () => {
@@ -482,7 +488,7 @@ describe('progressSlice', () => {
         data: 'date,exercises_completed,streak\n2025-12-06,1,7\n',
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(mockResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(mockResponse);
 
       await store.dispatch(exportProgressData({ format: 'csv' }));
       const state = store.getState().progress;
@@ -492,7 +498,7 @@ describe('progressSlice', () => {
     });
 
     it('should handle export error', async () => {
-      mockedAxios.get = vi.fn().mockRejectedValue(new Error('Export failed'));
+      mockedApiClient.get = vi.fn().mockRejectedValue(new Error('Export failed'));
 
       await store.dispatch(exportProgressData({ format: 'json' }));
       const state = store.getState().progress;
@@ -515,7 +521,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(metricsResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(metricsResponse);
       await store.dispatch(fetchProgressMetrics());
 
       let state = store.getState().progress;
@@ -533,7 +539,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(achievementsResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(achievementsResponse);
       await store.dispatch(fetchAchievements());
 
       state = store.getState().progress;
@@ -551,7 +557,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockResolvedValue(historyResponse);
+      mockedApiClient.get = vi.fn().mockResolvedValue(historyResponse);
       await store.dispatch(fetchProgressHistory({ days: 30 }));
 
       state = store.getState().progress;
@@ -569,7 +575,7 @@ describe('progressSlice', () => {
         },
       };
 
-      mockedAxios.get = vi.fn().mockRejectedValue(errorResponse);
+      mockedApiClient.get = vi.fn().mockRejectedValue(errorResponse);
 
       await store.dispatch(fetchProgressMetrics());
       const state = store.getState().progress;
@@ -578,7 +584,7 @@ describe('progressSlice', () => {
     });
 
     it('should handle network errors gracefully', async () => {
-      mockedAxios.get = vi.fn().mockRejectedValue(new Error('Network error'));
+      mockedApiClient.get = vi.fn().mockRejectedValue(new Error('Network error'));
 
       await store.dispatch(fetchProgressMetrics());
       const state = store.getState().progress;

@@ -8,23 +8,20 @@
  * - Statistics and analytics
  * - Skill level tracking
  * - Data export functionality
+ *
+ * Security Updates (SEC-1-FE):
+ * - Uses apiClient with cookie-based authentication
+ * - NO localStorage token usage (prevents XSS attacks)
+ * - withCredentials: true ensures httpOnly cookies are sent
+ *
+ * Related: SEC-1 Security Hardening (backend httpOnly cookies)
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-// API client helper - returns auth headers
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('access_token');
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  };
-};
+// Cookie-based auth: apiClient handles authentication automatically
+// Cookies are sent with withCredentials: true, no manual header injection needed
+import apiClient from '../../services/api';
 
 // ===================================================================
 // TYPE DEFINITIONS
@@ -124,7 +121,7 @@ export const fetchProgressMetrics = createAsyncThunk(
   'progress/fetchProgressMetrics',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/progress`, getAuthHeaders());
+      const response = await apiClient.get('/progress');
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message);
@@ -139,7 +136,7 @@ export const fetchAchievements = createAsyncThunk(
   'progress/fetchAchievements',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/progress/achievements`, getAuthHeaders());
+      const response = await apiClient.get('/progress/achievements');
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message);
@@ -161,9 +158,9 @@ export const fetchProgressHistory = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/progress/history`,
-        { ...getAuthHeaders(), params }
+      const response = await apiClient.get(
+        '/progress/history',
+        { params }
       );
       return response.data;
     } catch (error: any) {
@@ -184,9 +181,9 @@ export const fetchStatistics = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/progress/statistics`,
-        { ...getAuthHeaders(), params }
+      const response = await apiClient.get(
+        '/progress/statistics',
+        { params }
       );
       return response.data;
     } catch (error: any) {
@@ -202,7 +199,7 @@ export const fetchBadges = createAsyncThunk(
   'progress/fetchBadges',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/progress/badges`, getAuthHeaders());
+      const response = await apiClient.get('/progress/badges');
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message);
@@ -217,7 +214,7 @@ export const fetchSkillLevels = createAsyncThunk(
   'progress/fetchSkillLevels',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/progress/skills`, getAuthHeaders());
+      const response = await apiClient.get('/progress/skills');
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message);
@@ -237,9 +234,9 @@ export const exportProgressData = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/progress/export`,
-        { ...getAuthHeaders(), params }
+      const response = await apiClient.get(
+        '/progress/export',
+        { params }
       );
       return response.data;
     } catch (error: any) {
