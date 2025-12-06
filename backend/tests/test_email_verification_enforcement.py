@@ -31,7 +31,7 @@ class TestRequireVerifiedEmailDecorator:
 
     @pytest.mark.asyncio
     async def test_decorator_blocks_unverified_user(
-        self, async_client, test_user_unverified, auth_headers_unverified
+        self, client, test_user_unverified, auth_headers_unverified
     ):
         """
         Test that require_verified_email decorator blocks unverified users.
@@ -41,7 +41,7 @@ class TestRequireVerifiedEmailDecorator:
         Then: Request is rejected with 403 status
         """
         # Try to access a protected route (will use daily exercise endpoint)
-        response = await async_client.get(
+        response = await client.get(
             "/api/exercises/daily",
             headers=auth_headers_unverified
         )
@@ -53,7 +53,7 @@ class TestRequireVerifiedEmailDecorator:
 
     @pytest.mark.asyncio
     async def test_decorator_allows_verified_user(
-        self, async_client, test_user, auth_headers
+        self, client, test_user, auth_headers
     ):
         """
         Test that require_verified_email decorator allows verified users.
@@ -63,7 +63,7 @@ class TestRequireVerifiedEmailDecorator:
         Then: Request is allowed (may fail for other reasons, but not email verification)
         """
         # Try to access a protected route
-        response = await async_client.get(
+        response = await client.get(
             "/api/exercises/daily",
             headers=auth_headers
         )
@@ -74,7 +74,7 @@ class TestRequireVerifiedEmailDecorator:
 
     @pytest.mark.asyncio
     async def test_decorator_without_auth_raises_401(
-        self, async_client
+        self, client
     ):
         """
         Test that require_verified_email without authentication raises 401.
@@ -83,13 +83,13 @@ class TestRequireVerifiedEmailDecorator:
         When: User attempts to access a protected route
         Then: Request is rejected with 401 (not 403)
         """
-        response = await async_client.get("/api/exercises/daily")
+        response = await client.get("/api/exercises/daily")
 
         assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_decorator_with_oauth_user_allows_access(
-        self, async_client, test_user_oauth, auth_headers_oauth
+        self, client, test_user_oauth, auth_headers_oauth
     ):
         """
         Test that OAuth users (auto-verified) can access protected routes.
@@ -98,7 +98,7 @@ class TestRequireVerifiedEmailDecorator:
         When: User attempts to access a protected route
         Then: Request is allowed
         """
-        response = await async_client.get(
+        response = await client.get(
             "/api/exercises/daily",
             headers=auth_headers_oauth
         )
@@ -112,7 +112,7 @@ class TestEmailVerificationWorkflow:
 
     @pytest.mark.asyncio
     async def test_registration_sends_verification_email(
-        self, async_client, async_db_session
+        self, client, db_session
     ):
         """
         Test that registration automatically sends verification email.
@@ -127,7 +127,7 @@ class TestEmailVerificationWorkflow:
             "name": "New User"
         }
 
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/register",
             json=registration_data
         )
@@ -138,7 +138,7 @@ class TestEmailVerificationWorkflow:
         assert data["user"]["email_verified"] is False
 
         # Verify user created with email_verified=False
-        result = await async_db_session.execute(
+        result = await db_session.execute(
             select(User).where(User.email == "newuser@example.com")
         )
         user = result.scalar_one_or_none()
@@ -147,7 +147,7 @@ class TestEmailVerificationWorkflow:
 
     @pytest.mark.asyncio
     async def test_verify_email_with_valid_token(
-        self, async_client, test_user_unverified, async_db_session
+        self, client, test_user_unverified, db_session
     ):
         """
         Test email verification with valid token.
@@ -163,7 +163,7 @@ class TestEmailVerificationWorkflow:
             token
         )
 
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/verify-email",
             json={"token": token}
         )
@@ -174,12 +174,12 @@ class TestEmailVerificationWorkflow:
         assert data["user"]["email_verified"] is True
 
         # Verify in database
-        await async_db_session.refresh(test_user_unverified)
+        await db_session.refresh(test_user_unverified)
         assert test_user_unverified.email_verified is True
 
     @pytest.mark.asyncio
     async def test_verify_email_with_invalid_token(
-        self, async_client
+        self, client
     ):
         """
         Test email verification with invalid token.
@@ -188,7 +188,7 @@ class TestEmailVerificationWorkflow:
         When: User submits the token
         Then: Request is rejected with 400 error
         """
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/verify-email",
             json={"token": "invalid_token_12345"}
         )
@@ -199,7 +199,7 @@ class TestEmailVerificationWorkflow:
 
     @pytest.mark.asyncio
     async def test_verify_email_with_expired_token(
-        self, async_client, test_user_unverified
+        self, client, test_user_unverified
     ):
         """
         Test email verification with expired token.
@@ -221,7 +221,7 @@ class TestEmailVerificationWorkflow:
         import asyncio
         await asyncio.sleep(2)
 
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/verify-email",
             json={"token": token}
         )
@@ -232,7 +232,7 @@ class TestEmailVerificationWorkflow:
 
     @pytest.mark.asyncio
     async def test_verify_already_verified_email(
-        self, async_client, test_user
+        self, client, test_user
     ):
         """
         Test verifying an already verified email (idempotent).
@@ -248,7 +248,7 @@ class TestEmailVerificationWorkflow:
             token
         )
 
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/verify-email",
             json={"token": token}
         )
@@ -263,7 +263,7 @@ class TestResendVerificationEmail:
 
     @pytest.mark.asyncio
     async def test_resend_verification_email_success(
-        self, async_client, test_user_unverified
+        self, client, test_user_unverified
     ):
         """
         Test resending verification email for unverified user.
@@ -272,7 +272,7 @@ class TestResendVerificationEmail:
         When: User requests to resend verification email
         Then: New verification email is sent
         """
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/resend-verification",
             json={"email": test_user_unverified.email}
         )
@@ -283,7 +283,7 @@ class TestResendVerificationEmail:
 
     @pytest.mark.asyncio
     async def test_resend_verification_for_already_verified(
-        self, async_client, test_user
+        self, client, test_user
     ):
         """
         Test resending verification email for already verified user.
@@ -292,7 +292,7 @@ class TestResendVerificationEmail:
         When: User requests to resend verification email
         Then: Returns appropriate message (email already verified)
         """
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/resend-verification",
             json={"email": test_user.email}
         )
@@ -305,7 +305,7 @@ class TestResendVerificationEmail:
 
     @pytest.mark.asyncio
     async def test_resend_verification_for_nonexistent_user(
-        self, async_client
+        self, client
     ):
         """
         Test resending verification email for non-existent user.
@@ -314,7 +314,7 @@ class TestResendVerificationEmail:
         When: Request to resend verification email
         Then: Returns generic success message (prevent email enumeration)
         """
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/resend-verification",
             json={"email": "nonexistent@example.com"}
         )
@@ -326,7 +326,7 @@ class TestResendVerificationEmail:
 
     @pytest.mark.asyncio
     async def test_resend_verification_rate_limiting(
-        self, async_client, test_user_unverified
+        self, client, test_user_unverified
     ):
         """
         Test rate limiting on resend verification email.
@@ -337,7 +337,7 @@ class TestResendVerificationEmail:
         """
         # Make multiple requests
         for i in range(6):  # Assuming rate limit is 5 per minute
-            response = await async_client.post(
+            response = await client.post(
                 "/api/auth/resend-verification",
                 json={"email": test_user_unverified.email}
             )
@@ -350,7 +350,7 @@ class TestResendVerificationEmail:
 
     @pytest.mark.asyncio
     async def test_resend_verification_missing_email(
-        self, async_client
+        self, client
     ):
         """
         Test resend verification with missing email parameter.
@@ -359,7 +359,7 @@ class TestResendVerificationEmail:
         When: User requests to resend verification
         Then: Returns 400 validation error
         """
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/resend-verification",
             json={}
         )
@@ -374,14 +374,14 @@ class TestProtectedRoutes:
 
     @pytest.mark.asyncio
     async def test_daily_exercise_requires_verification(
-        self, async_client, test_user_unverified, auth_headers_unverified
+        self, client, test_user_unverified, auth_headers_unverified
     ):
         """
         Test that daily exercise endpoint requires email verification.
 
         Route: GET /api/exercises/daily
         """
-        response = await async_client.get(
+        response = await client.get(
             "/api/exercises/daily",
             headers=auth_headers_unverified
         )
@@ -392,14 +392,14 @@ class TestProtectedRoutes:
 
     @pytest.mark.asyncio
     async def test_submit_exercise_requires_verification(
-        self, async_client, test_user_unverified, auth_headers_unverified
+        self, client, test_user_unverified, auth_headers_unverified
     ):
         """
         Test that submit exercise endpoint requires email verification.
 
         Route: POST /api/exercises/{exercise_id}/submit
         """
-        response = await async_client.post(
+        response = await client.post(
             "/api/exercises/1/submit",
             headers=auth_headers_unverified,
             json={"code": "print('hello')"}
@@ -411,14 +411,14 @@ class TestProtectedRoutes:
 
     @pytest.mark.asyncio
     async def test_chat_requires_verification(
-        self, async_client, test_user_unverified, auth_headers_unverified
+        self, client, test_user_unverified, auth_headers_unverified
     ):
         """
         Test that chat endpoints require email verification.
 
         Route: POST /api/chat/conversations/{conversation_id}/messages
         """
-        response = await async_client.post(
+        response = await client.post(
             "/api/chat/conversations/1/messages",
             headers=auth_headers_unverified,
             json={"content": "Hello"}
@@ -430,14 +430,14 @@ class TestProtectedRoutes:
 
     @pytest.mark.asyncio
     async def test_profile_update_requires_verification(
-        self, async_client, test_user_unverified, auth_headers_unverified
+        self, client, test_user_unverified, auth_headers_unverified
     ):
         """
         Test that profile update endpoint requires email verification.
 
         Route: PUT /api/users/profile
         """
-        response = await async_client.put(
+        response = await client.put(
             "/api/users/profile",
             headers=auth_headers_unverified,
             json={"name": "Updated Name"}
@@ -449,7 +449,7 @@ class TestProtectedRoutes:
 
     @pytest.mark.asyncio
     async def test_public_routes_do_not_require_verification(
-        self, async_client
+        self, client
     ):
         """
         Test that public routes do not require email verification.
@@ -464,21 +464,21 @@ class TestProtectedRoutes:
         # (may be 400 for validation, but not 403 for email verification)
 
         # Register
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/register",
             json={"email": "test@example.com", "password": "Test123!", "name": "Test"}
         )
         assert response.status_code in [200, 201, 400, 409]  # Not 403
 
         # Login (will fail, but not due to email verification)
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/login",
             json={"email": "test@example.com", "password": "wrong"}
         )
         assert response.status_code in [200, 201, 400, 401]  # Not 403
 
         # Verify email
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/verify-email",
             json={"token": "fake_token"}
         )
@@ -490,7 +490,7 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_verification_after_user_deletion(
-        self, async_client, async_db_session
+        self, client, db_session
     ):
         """
         Test verification attempt after user is deleted.
@@ -505,7 +505,7 @@ class TestErrorHandling:
         await AuthService.store_verification_token(user_email, token)
 
         # Try to verify (user doesn't exist)
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/verify-email",
             json={"token": token}
         )
@@ -514,7 +514,7 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_multiple_verification_tokens(
-        self, async_client, test_user_unverified, async_db_session
+        self, client, test_user_unverified, db_session
     ):
         """
         Test that new verification token invalidates old one.
@@ -538,7 +538,7 @@ class TestErrorHandling:
         )
 
         # Try to use first token
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/verify-email",
             json={"token": token1}
         )
@@ -547,7 +547,7 @@ class TestErrorHandling:
         assert response.status_code in [400, 404]
 
         # Second token should work
-        response = await async_client.post(
+        response = await client.post(
             "/api/auth/verify-email",
             json={"token": token2}
         )
@@ -556,7 +556,7 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_concurrent_verification_attempts(
-        self, async_client, test_user_unverified, async_db_session
+        self, client, test_user_unverified, db_session
     ):
         """
         Test concurrent verification attempts (race condition).
@@ -574,9 +574,9 @@ class TestErrorHandling:
         # Make concurrent requests
         import asyncio
         responses = await asyncio.gather(
-            async_client.post("/api/auth/verify-email", json={"token": token}),
-            async_client.post("/api/auth/verify-email", json={"token": token}),
-            async_client.post("/api/auth/verify-email", json={"token": token}),
+            client.post("/api/auth/verify-email", json={"token": token}),
+            client.post("/api/auth/verify-email", json={"token": token}),
+            client.post("/api/auth/verify-email", json={"token": token}),
         )
 
         # All should succeed (idempotent) or at least one should succeed
@@ -587,7 +587,7 @@ class TestErrorHandling:
 # Pytest fixtures for test data
 
 @pytest.fixture
-async def test_user_unverified(async_db_session):
+async def test_user_unverified(db_session):
     """Create a test user with unverified email."""
     user = User(
         email="unverified@example.com",
@@ -597,9 +597,9 @@ async def test_user_unverified(async_db_session):
         email_verified=False,
         is_active=True
     )
-    async_db_session.add(user)
-    await async_db_session.flush()
-    await async_db_session.refresh(user)
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.refresh(user)
     return user
 
 
@@ -628,7 +628,7 @@ async def auth_headers_unverified(test_user_unverified):
 
 
 @pytest.fixture
-async def test_user_oauth(async_db_session):
+async def test_user_oauth(db_session):
     """Create a test user from OAuth (auto-verified)."""
     user = User(
         email="oauth@example.com",
@@ -639,9 +639,9 @@ async def test_user_oauth(async_db_session):
         oauth_provider="github",
         github_id="12345"
     )
-    async_db_session.add(user)
-    await async_db_session.flush()
-    await async_db_session.refresh(user)
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.refresh(user)
     return user
 
 

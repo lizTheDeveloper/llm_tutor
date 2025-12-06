@@ -35,14 +35,13 @@ async def test_user(db_session):
     """Create a test user with profile data."""
     user = User(
         email="exerciser@test.com",
-        username="exerciser",
+        name="exerciser",
         password_hash="hashed_password",
         email_verified=True,
         is_active=True,
-        primary_language="python",
+        programming_language="python",
         skill_level="intermediate",
-        learning_goals="Master algorithms and data structures",
-        preferred_topics="algorithms,data_structures,problem_solving"
+        career_goals="Master algorithms and data structures"
     )
     db_session.add(user)
     await db_session.flush()

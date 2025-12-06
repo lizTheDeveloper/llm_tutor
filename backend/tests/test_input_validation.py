@@ -27,6 +27,7 @@ import pytest
 from quart import Quart
 from typing import Dict, Any
 import json
+import uuid
 
 
 # ===================================================================
@@ -627,8 +628,9 @@ async def auth_headers(client, test_user):
 @pytest.fixture
 async def test_user(client):
     """Create a test user."""
+    random_id = str(uuid.uuid4())[:8]
     user_data = {
-        "email": f"test_validation_{pytest.random_id}@example.com",
+        "email": f"test_validation_{random_id}@example.com",
         "password": "ValidPass123!",
         "name": "Test Validation User"
     }
