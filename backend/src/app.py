@@ -39,12 +39,26 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
     )
 
     # Create Quart app
-    app = Quart(__name__)
+    # Workaround: Set Flask default config for PROVIDE_AUTOMATIC_OPTIONS
+    # This must be set before Quart initialization as it's checked during __init__
+    from flask.config import Config as FlaskConfig
+    original_init = FlaskConfig.__init__
+    def patched_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        self.setdefault("PROVIDE_AUTOMATIC_OPTIONS", True)
+
+    FlaskConfig.__init__ = patched_init
+
+    try:
+        app = Quart(__name__)
+    finally:
+        # Restore original init
+        FlaskConfig.__init__ = original_init
 
     # Apply configuration
     app.config.update(
         {
-            "SECRET_KEY": settings.secret_key,
+            "SECRET_KEY": settings.secret_key.get_secret_value(),
             "DEBUG": settings.debug,
             "TESTING": False,
         }
@@ -148,13 +162,15 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
             "environment": settings.app_env,
         }
 
-        # Check database connectivity
+        # Check database connectivity (using async engine to avoid dual-engine overhead)
         try:
             from sqlalchemy import text
 
             db_manager = get_database()
-            with db_manager.sync_engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
+            # Use async engine to avoid creating unnecessary sync engine
+            # This addresses AP-ARCH-004: Dual database engines
+            async with db_manager.async_engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
             health_status["database"] = "connected"
         except Exception as exception:
             logger.error(

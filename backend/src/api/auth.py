@@ -2,9 +2,9 @@
 Authentication API endpoints.
 Handles user registration, login, OAuth, and session management.
 """
-from quart import Blueprint, request, jsonify, redirect
+from quart import Blueprint, request, jsonify, redirect, make_response
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from src.logging_config import get_logger
@@ -16,9 +16,82 @@ from src.services.email_service import get_email_service
 from src.services.oauth_service import OAuthService
 from src.models.user import User, UserRole
 from src.utils.database import get_async_db_session as get_session
+from src.config import settings
 
 logger = get_logger(__name__)
 auth_bp = Blueprint("auth", __name__)
+
+
+def set_auth_cookies(response, access_token: str, refresh_token: str):
+    """
+    Set authentication tokens in httpOnly cookies.
+
+    Args:
+        response: Quart response object
+        access_token: JWT access token
+        refresh_token: JWT refresh token
+
+    Security Features:
+    - httpOnly: Prevents JavaScript access (XSS protection)
+    - secure: Only sent over HTTPS (except in development)
+    - samesite=Strict: Prevents CSRF attacks
+    - max_age: Automatic expiration
+
+    This addresses AP-SEC-001: Token storage in localStorage vulnerability.
+    """
+    is_production = settings.app_env == "production"
+
+    # Access token cookie (24 hours)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        max_age=settings.jwt_access_token_expire_hours * 3600,  # Convert to seconds
+        httponly=True,
+        secure=is_production,  # Only HTTPS in production
+        samesite="Strict",  # Prevent CSRF
+        path="/",
+    )
+
+    # Refresh token cookie (30 days)
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        max_age=settings.jwt_refresh_token_expire_days * 24 * 3600,  # Convert to seconds
+        httponly=True,
+        secure=is_production,
+        samesite="Strict",
+        path="/",
+    )
+
+    logger.debug("Auth cookies set", extra={"httponly": True, "secure": is_production})
+
+
+def clear_auth_cookies(response):
+    """
+    Clear authentication cookies on logout.
+
+    Args:
+        response: Quart response object
+    """
+    response.set_cookie(
+        key="access_token",
+        value="",
+        max_age=0,
+        httponly=True,
+        secure=settings.app_env == "production",
+        samesite="Strict",
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value="",
+        max_age=0,
+        httponly=True,
+        secure=settings.app_env == "production",
+        samesite="Strict",
+        path="/",
+    )
+    logger.debug("Auth cookies cleared")
 
 
 @auth_bp.route("/register", methods=["POST"])
@@ -199,7 +272,8 @@ async def login() -> Dict[str, Any]:
 
         logger.info("User logged in successfully", extra={"user_id": user.id, "email": email})
 
-        return jsonify({
+        # Create response with user data (NO tokens in JSON)
+        response_data = {
             "message": "Login successful",
             "user": {
                 "id": user.id,
@@ -208,8 +282,13 @@ async def login() -> Dict[str, Any]:
                 "role": user.role.value,
                 "email_verified": user.email_verified,
             },
-            **tokens,
-        }), 200
+        }
+
+        # Create response and set httpOnly cookies
+        response = await make_response(jsonify(response_data), 200)
+        set_auth_cookies(response, tokens["access_token"], tokens["refresh_token"])
+
+        return response
 
 
 @auth_bp.route("/logout", methods=["POST"])
@@ -226,9 +305,12 @@ async def logout() -> Dict[str, Any]:
     """
     user_id = get_current_user_id()
 
-    # Get token from header
+    # Get token from header or cookie
     auth_header = request.headers.get("Authorization", "")
     token = auth_header.split()[1] if len(auth_header.split()) == 2 else None
+
+    if not token:
+        token = request.cookies.get("access_token")
 
     if token:
         # Invalidate session in Redis
@@ -236,9 +318,11 @@ async def logout() -> Dict[str, Any]:
 
     logger.info("User logged out successfully", extra={"user_id": user_id})
 
-    return jsonify({
-        "message": "Logout successful"
-    }), 200
+    # Create response and clear auth cookies
+    response = await make_response(jsonify({"message": "Logout successful"}), 200)
+    clear_auth_cookies(response)
+
+    return response
 
 
 @auth_bp.route("/oauth/github", methods=["GET"])
@@ -255,7 +339,7 @@ async def oauth_github() -> Dict[str, Any]:
     state = await OAuthService.generate_oauth_state("github")
 
     # Build redirect URI from config
-    redirect_uri = f"{settings.backend_url}/api/v1/auth/oauth/github/callback"
+    redirect_uri = f"{settings.backend_url}/api/auth/oauth/github/callback"
 
     # Get authorization URL
     auth_url = OAuthService.get_github_authorization_url(state, redirect_uri)
@@ -339,7 +423,7 @@ async def oauth_exchange_code() -> Dict[str, Any]:
     oauth_code_key = stored_data.replace(f"oauth_{provider}_", "")
 
     # Exchange code for access token based on provider
-    redirect_uri = f"{settings.backend_url}/api/v1/auth/oauth/{provider}/callback"
+    redirect_uri = f"{settings.backend_url}/api/auth/oauth/{provider}/callback"
 
     if provider == "github":
         oauth_access_token = await OAuthService.exchange_github_code(oauth_code_key, redirect_uri)
@@ -420,7 +504,8 @@ async def oauth_exchange_code() -> Dict[str, Any]:
 
         logger.info(f"{provider.title()} OAuth exchange successful", extra={"user_id": user.id})
 
-        return jsonify({
+        # Create response with user data (NO tokens in JSON)
+        response_data = {
             "message": "OAuth authentication successful",
             "user": {
                 "id": user.id,
@@ -429,8 +514,13 @@ async def oauth_exchange_code() -> Dict[str, Any]:
                 "role": user.role.value,
                 "email_verified": user.email_verified,
             },
-            **tokens,
-        }), 200
+        }
+
+        # Create response and set httpOnly cookies
+        response = await make_response(jsonify(response_data), 200)
+        set_auth_cookies(response, tokens["access_token"], tokens["refresh_token"])
+
+        return response
 
 
 @auth_bp.route("/oauth/google", methods=["GET"])
@@ -447,7 +537,7 @@ async def oauth_google() -> Dict[str, Any]:
     state = await OAuthService.generate_oauth_state("google")
 
     # Build redirect URI from config
-    redirect_uri = f"{settings.backend_url}/api/v1/auth/oauth/google/callback"
+    redirect_uri = f"{settings.backend_url}/api/auth/oauth/google/callback"
 
     # Get authorization URL
     auth_url = OAuthService.get_google_authorization_url(state, redirect_uri)

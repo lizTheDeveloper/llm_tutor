@@ -1,21 +1,25 @@
 """
 Database configuration and connection management for CodeMentor backend.
 Provides SQLAlchemy setup with PostgreSQL connection pooling.
+
+DB-OPT Changes:
+- Removed sync engine (async-only architecture)
+- Added connection pool sizing documentation
+- Created get_sync_engine_for_migrations() for Alembic
 """
 from typing import Optional
 from contextlib import asynccontextmanager
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
     AsyncSession,
     async_sessionmaker,
 )
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import QueuePool
-import time
 import threading
 
-from ..utils.logger import get_logger, log_database_query
+from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -26,7 +30,17 @@ Base = declarative_base()
 class DatabaseManager:
     """
     Database connection and session management.
-    Handles both sync and async SQLAlchemy engines.
+    Async-only architecture for optimal connection pool utilization.
+
+    DB-OPT: Removed sync engine to reduce connection pool usage by 50%.
+    Previous: 20 sync + 20 async = 40 connections
+    Current: 20 async connections only
+
+    Connection Pool Sizing Formula:
+        pool_size = workers × threads × 2 + overhead
+        Example: 4 workers × 4 threads × 2 + 4 = 36 connections
+
+    For Alembic migrations, use get_sync_engine_for_migrations() instead.
     """
 
     def __init__(
@@ -38,11 +52,11 @@ class DatabaseManager:
         echo: bool = False,
     ):
         """
-        Initialize database manager.
+        Initialize database manager with async-only engine.
 
         Args:
             database_url: PostgreSQL connection URL
-            pool_size: Connection pool size
+            pool_size: Connection pool size (calculated based on workers × threads × 2 + overhead)
             max_overflow: Maximum overflow connections
             pool_pre_ping: Enable connection health checks
             echo: Enable SQL query echo logging
@@ -53,35 +67,17 @@ class DatabaseManager:
         self.pool_pre_ping = pool_pre_ping
         self.echo = echo
 
-        # Initialize engines
-        self._sync_engine = None
+        # Initialize async engine only (DB-OPT: removed sync engine)
         self._async_engine = None
-        self._session_factory = None
         self._async_session_factory = None
 
         logger.info(
-            "Database manager initialized",
+            "Database manager initialized (async-only)",
             extra={
                 "pool_size": pool_size,
                 "max_overflow": max_overflow,
             },
         )
-
-    @property
-    def sync_engine(self):
-        """Get or create synchronous SQLAlchemy engine."""
-        if self._sync_engine is None:
-            self._sync_engine = create_engine(
-                self.database_url,
-                poolclass=QueuePool,
-                pool_size=self.pool_size,
-                max_overflow=self.max_overflow,
-                pool_pre_ping=self.pool_pre_ping,
-                echo=self.echo,
-            )
-            self._setup_event_listeners(self._sync_engine)
-            logger.info("Synchronous database engine created")
-        return self._sync_engine
 
     @property
     def async_engine(self):
@@ -102,17 +98,6 @@ class DatabaseManager:
         return self._async_engine
 
     @property
-    def session_factory(self):
-        """Get or create synchronous session factory."""
-        if self._session_factory is None:
-            self._session_factory = sessionmaker(
-                bind=self.sync_engine,
-                class_=Session,
-                expire_on_commit=False,
-            )
-        return self._session_factory
-
-    @property
     def async_session_factory(self):
         """Get or create asynchronous session factory."""
         if self._async_session_factory is None:
@@ -122,24 +107,6 @@ class DatabaseManager:
                 expire_on_commit=False,
             )
         return self._async_session_factory
-
-    def _setup_event_listeners(self, engine):
-        """Set up SQLAlchemy event listeners for query logging."""
-
-        @event.listens_for(engine, "before_cursor_execute")
-        def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-            """Record query start time."""
-            conn.info.setdefault("query_start_time", []).append(time.time())
-
-        @event.listens_for(engine, "after_cursor_execute")
-        def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-            """Log query execution time."""
-            total_time = time.time() - conn.info["query_start_time"].pop()
-            log_database_query(
-                query=statement,
-                duration_ms=total_time * 1000,
-                success=True,
-            )
 
     @asynccontextmanager
     async def get_async_session(self):
@@ -166,37 +133,37 @@ class DatabaseManager:
             finally:
                 await session.close()
 
-    def get_sync_session(self) -> Session:
+    async def create_all_tables(self):
         """
-        Get a synchronous database session.
+        Create all database tables defined in models (async).
 
-        Returns:
-            SQLAlchemy Session instance
-
-        Note: Caller is responsible for closing the session.
+        DB-OPT: Converted to async to avoid sync engine dependency.
         """
-        return self.session_factory()
-
-    def create_all_tables(self):
-        """Create all database tables defined in models."""
-        logger.info("Creating database tables")
-        Base.metadata.create_all(bind=self.sync_engine)
+        logger.info("Creating database tables (async)")
+        async with self.async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
         logger.info("Database tables created successfully")
 
-    def drop_all_tables(self):
-        """Drop all database tables. Use with caution!"""
-        logger.warning("Dropping all database tables")
-        Base.metadata.drop_all(bind=self.sync_engine)
+    async def drop_all_tables(self):
+        """
+        Drop all database tables. Use with caution!
+
+        DB-OPT: Converted to async to avoid sync engine dependency.
+        """
+        logger.warning("Dropping all database tables (async)")
+        async with self.async_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
         logger.warning("All database tables dropped")
 
     async def close(self):
-        """Close database connections and dispose engines."""
+        """
+        Close database connections and dispose async engine.
+
+        DB-OPT: Only async engine exists now.
+        """
         if self._async_engine:
             await self._async_engine.dispose()
             logger.info("Async database engine disposed")
-        if self._sync_engine:
-            self._sync_engine.dispose()
-            logger.info("Sync database engine disposed")
 
 
 # Global database manager instance and thread lock
@@ -265,3 +232,31 @@ async def get_async_db_session():
     db_manager = get_database()
     async with db_manager.get_async_session() as session:
         yield session
+
+
+def get_sync_engine_for_migrations(database_url: str):
+    """
+    Create a synchronous engine specifically for Alembic migrations.
+
+    DB-OPT: DatabaseManager no longer has sync engine. This function provides
+    a separate sync engine ONLY for migration purposes.
+
+    Args:
+        database_url: PostgreSQL connection URL
+
+    Returns:
+        Synchronous SQLAlchemy engine for migrations
+
+    Usage in alembic/env.py:
+        from src.utils.database import get_sync_engine_for_migrations
+        engine = get_sync_engine_for_migrations(config.get_main_option("sqlalchemy.url"))
+    """
+    engine = create_engine(
+        database_url,
+        poolclass=QueuePool,
+        pool_size=5,  # Small pool for migrations only
+        max_overflow=5,
+        pool_pre_ping=True,
+    )
+    logger.info("Created sync engine for migrations")
+    return engine

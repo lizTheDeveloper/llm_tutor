@@ -4,7 +4,7 @@ Loads settings from environment variables and provides typed configuration objec
 """
 import os
 from typing import Optional, List
-from pydantic import validator, Field
+from pydantic import validator, field_validator, Field, SecretStr
 from pydantic_settings import BaseSettings
 
 
@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     app_name: str = Field(default="CodeMentor", env="APP_NAME")
     app_env: str = Field(default="development", env="APP_ENV")
     debug: bool = Field(default=False, env="DEBUG")
-    secret_key: str = Field(..., env="SECRET_KEY")
+    secret_key: SecretStr = Field(..., env="SECRET_KEY")
 
     # Server
     host: str = Field(default="0.0.0.0", env="HOST")
@@ -23,6 +23,9 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = Field(..., env="DATABASE_URL")
+    # DB-OPT: Connection pool sizing formula: workers × threads × 2 + overhead
+    # Example: 4 workers × 4 threads × 2 + 4 = 36 connections
+    # Default 20 is conservative for development (2 workers × 4 threads × 2 + 4)
     database_pool_size: int = Field(default=20, env="DATABASE_POOL_SIZE")
     database_max_overflow: int = Field(default=10, env="DATABASE_MAX_OVERFLOW")
 
@@ -31,7 +34,7 @@ class Settings(BaseSettings):
     redis_session_db: int = Field(default=1, env="REDIS_SESSION_DB")
 
     # JWT
-    jwt_secret_key: str = Field(..., env="JWT_SECRET_KEY")
+    jwt_secret_key: SecretStr = Field(..., env="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
     jwt_access_token_expire_hours: int = Field(default=24, env="JWT_ACCESS_TOKEN_EXPIRE_HOURS")
     jwt_refresh_token_expire_days: int = Field(default=30, env="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
@@ -87,6 +90,30 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
     rate_limit_burst: int = Field(default=10, env="RATE_LIMIT_BURST")
 
+    @field_validator("secret_key", "jwt_secret_key")
+    @classmethod
+    def validate_secret_strength(cls, value: SecretStr) -> SecretStr:
+        """
+        Validate that secret keys are strong enough for production use.
+
+        Security Requirement:
+        - Minimum 32 characters for cryptographic strength
+        - Prevents weak secrets that could be brute-forced
+
+        This addresses AP-CRIT-003: Configuration validation missing.
+        """
+        secret_str = value.get_secret_value()
+
+        if len(secret_str) < 32:
+            raise ValueError(
+                f"Secret key must be at least 32 characters long for security. "
+                f"Got {len(secret_str)} characters. "
+                f"Use a strong random string generated with: "
+                f"python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+            )
+
+        return value
+
     @validator("cors_origins")
     def parse_cors_origins(cls, value) -> List[str]:
         """Parse comma-separated CORS origins into a list."""
@@ -98,6 +125,8 @@ class Settings(BaseSettings):
         """Pydantic configuration."""
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra fields in .env file
+        validate_assignment = True  # Validate on assignment, not just initialization
 
 
 def get_settings() -> Settings:

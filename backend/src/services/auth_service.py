@@ -163,7 +163,7 @@ class AuthService:
 
         token = jwt.encode(
             payload,
-            settings.jwt_secret_key,
+            settings.jwt_secret_key.get_secret_value(),
             algorithm=settings.jwt_algorithm,
         )
 
@@ -196,7 +196,7 @@ class AuthService:
         try:
             payload = jwt.decode(
                 token,
-                settings.jwt_secret_key,
+                settings.jwt_secret_key.get_secret_value(),
                 algorithms=[settings.jwt_algorithm],
             )
 
@@ -273,12 +273,12 @@ class AuthService:
             # Decode tokens to get JTI and expiration
             access_payload = jwt.decode(
                 access_token,
-                settings.jwt_secret_key,
+                settings.jwt_secret_key.get_secret_value(),
                 algorithms=[settings.jwt_algorithm],
             )
             refresh_payload = jwt.decode(
                 refresh_token,
-                settings.jwt_secret_key,
+                settings.jwt_secret_key.get_secret_value(),
                 algorithms=[settings.jwt_algorithm],
             )
 
@@ -337,7 +337,7 @@ class AuthService:
             # Decode token to get JTI
             payload = jwt.decode(
                 token,
-                settings.jwt_secret_key,
+                settings.jwt_secret_key.get_secret_value(),
                 algorithms=[settings.jwt_algorithm],
             )
 
@@ -376,7 +376,7 @@ class AuthService:
             # Decode token to get JTI
             payload = jwt.decode(
                 token,
-                settings.jwt_secret_key,
+                settings.jwt_secret_key.get_secret_value(),
                 algorithms=[settings.jwt_algorithm],
             )
 
