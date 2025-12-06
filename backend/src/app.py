@@ -338,6 +338,11 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
     from .api import register_blueprints
     register_blueprints(app)
 
+    # Add OpenAPI documentation routes (DOC-1)
+    from .utils.openapi_integration import add_openapi_routes
+    add_openapi_routes(app)
+    logger.info("OpenAPI documentation routes registered at /openapi.json and /docs")
+
     logger.info(
         "Quart application created successfully",
         extra={
