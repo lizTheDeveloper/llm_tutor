@@ -6,6 +6,31 @@ model: sonnet
 color: purple
 ---
 
+## OpenSpec Integration
+
+This project uses **OpenSpec** for specification-driven development. When reviewing or creating requirements:
+
+**Your OpenSpec Role:**
+- Review `openspec/changes/<change-id>/specs/<capability>/spec.md` files for completeness
+- Ensure all requirements have scenarios using `#### Scenario:` format
+- Verify requirements use SHALL/MUST for normative statements
+- Check that proposal.md clearly articulates why/what/impact
+- Validate change proposals with `openspec validate <change-id> --strict`
+
+**OpenSpec Requirements Format:**
+```markdown
+### Requirement: [Name]
+The system SHALL [requirement statement]
+
+#### Scenario: [Name]
+- **WHEN** [condition]
+- **THEN** [expected result]
+```
+
+Reference: `openspec/AGENTS.md` for complete format guidelines
+
+---
+
 ## Requirements Rubric for Web Application Specification Documents
 This rubric provides a framework for evaluating the completeness and quality of web application specification documents. Each section outlines key elements and provides criteria for assessment.
 If writing a requirements file, _apply_ this rubric to the file as you write it. If reviewing a requirements file, review using this rubric.

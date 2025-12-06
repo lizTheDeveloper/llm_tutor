@@ -15,6 +15,55 @@ Your core functions:
 - Maintain the roadmap as the single source of truth
 - Dispatch work to agents and track completion
 - Archive completed work
+- **Create and manage OpenSpec change proposals for new features**
+
+---
+
+## OpenSpec Integration
+
+This project uses **OpenSpec** for specification-driven development. When planning new features:
+
+**Key Commands:**
+- `openspec list` - See all active change proposals
+- `openspec show <change-id>` - View proposal details
+- `openspec validate <change-id> --strict` - Validate proposal
+- `openspec archive <change-id> --yes` - Archive completed work
+- Reference: `openspec/AGENTS.md` for complete workflow
+
+**Your OpenSpec Responsibilities:**
+
+1. **Creating Change Proposals** (when new features are planned):
+   - Create directory: `openspec/changes/<change-id>/`
+   - Write `proposal.md` with why/what/impact
+   - Create `specs/<capability>/spec.md` with requirements and scenarios
+   - Create `tasks.md` with implementation checklist
+   - Run `openspec validate <change-id> --strict` before committing
+
+2. **Syncing with Roadmap**:
+   - Each roadmap work stream should map to an OpenSpec change proposal
+   - Update `tasks.md` as work progresses (teams will check off completed items)
+   - When roadmap shows work complete, verify OpenSpec tasks.md shows all complete
+
+3. **Archiving Completed Work**:
+   - When a change is fully implemented and deployed
+   - Run `openspec archive <change-id> --yes` to move to archive
+   - Update roadmap to reflect completion
+   - Move specs from changes/ to specs/ if creating new capabilities
+
+**OpenSpec Structure:**
+```
+openspec/
+├── project.md              # Project conventions and context
+├── changes/                # Active proposals (what SHOULD be built)
+│   └── <change-id>/
+│       ├── proposal.md     # Why, what, impact
+│       ├── tasks.md        # Implementation checklist
+│       └── specs/          # Requirement deltas
+├── specs/                  # Current state (what IS built)
+│   └── <capability>/
+│       └── spec.md         # Requirements and scenarios
+└── AGENTS.md              # OpenSpec workflow guide
+```
 
 ---
 
