@@ -1,8 +1,9 @@
 # LLM Coding Tutor Platform - Active Roadmap
 
-## Document Version: 1.20
+## Document Version: 1.21
 ## Date: 2025-12-06
 ## Status: Stage 4.5 - COMPLETE | Stage 4.75 - IN PROGRESS (SEC-2, SEC-2-AUTH complete - 2025-12-06)
+## Latest: Agent infrastructure complete (OpenSpec, Agent Memory, Security Docs) - 2025-12-06
 ## Latest: Comprehensive Architectural Review completed - See docs/architectural-review-report.md
 
 ---
@@ -2009,13 +2010,101 @@ All completed work archived in `/Users/annhoward/src/llm_tutor/plans/completed/r
 
 ---
 
+## Agent Infrastructure & Workflow Tools
+
+**Note**: This section tracks meta-infrastructure for autonomous agent workflow, not LLM Tutor platform features.
+
+### INFRA-1: OpenSpec Workflow System
+**Status**: ✅ COMPLETE
+**Completed**: 2025-12-06
+**Agent**: infrastructure-engineer
+
+**Implementation**:
+- OpenSpec proposal/apply/archive workflow commands
+- Structured change management system
+- Agent configuration updates (security-reviewer agent)
+- CLAUDE.md updated with OpenSpec instructions
+
+**Files Created**:
+- `.claude/commands/openspec/proposal.md` (28 lines)
+- `.claude/commands/openspec/apply.md` (23 lines)
+- `.claude/commands/openspec/archive.md` (27 lines)
+- `.claude/agents/security-reviewer.md` (531 lines)
+- `AGENTS.md` (18 lines)
+
+**Files Modified**:
+- `CLAUDE.md` (+19 lines - OpenSpec instructions)
+
+**Deliverable**: ✅ OpenSpec workflow ready for autonomous agent change management
+
+---
+
+### INFRA-2: Agent Memory System
+**Status**: ✅ COMPLETE
+**Completed**: 2025-12-06
+**Agent**: infrastructure-engineer
+
+**Implementation**:
+- MCP server with SQLite persistence
+- Multi-layered memory (core, recent, episodic, task tracking)
+- Auto-summarization with Claude 3.5 Sonnet
+- 11 MCP tools for memory management
+- Integration tests (96 lines basic + 83 lines MCP)
+
+**Files Created**:
+- `agent_memory/README.md` (181 lines)
+- `agent_memory/requirements.txt` (2 packages)
+- `agent_memory/src/__init__.py` (3 lines)
+- `agent_memory/src/database.py` (435 lines)
+- `agent_memory/src/server.py` (380 lines)
+- `agent_memory/src/summarizer.py` (85 lines)
+- `agent_memory/test_basic.py` (96 lines)
+- `agent_memory/test_mcp_server.py` (83 lines)
+
+**Documentation**:
+- `devlog/agent-memory-system.md` (274 lines)
+
+**Deliverable**: ✅ Persistent multi-layered memory for AI agents
+
+---
+
+### INFRA-3: Security Documentation & Reviews
+**Status**: ✅ COMPLETE
+**Completed**: 2025-12-06
+**Agent**: security-reviewer
+
+**Implementation**:
+- Comprehensive security review findings (1,387 lines)
+- Security remediation summary (574 lines)
+- Security implementation guides (515 lines)
+- Secrets management documentation (141 lines)
+- Anti-pattern checklist (583 lines)
+
+**Files Created**:
+- `SECURITY-FIXES-SUMMARY.md` (574 lines)
+- `backend/SECRETS.md` (141 lines)
+- `backend/SECURITY-IMPLEMENTATION.md` (515 lines)
+- `reviews/security-review-2025-12-05.md` (1,387 lines)
+- `reviews/anti-pattern-checklist.md` (583 lines)
+
+**Deliverable**: ✅ Complete security audit trail and implementation guides
+
+---
+
+**Total Infrastructure Additions**: 5,385 lines across 20 files
+**Commit**: 86078b0 [INFRASTRUCTURE]: Add OpenSpec workflow system, agent memory, and security documentation
+
+All infrastructure components ready for autonomous agent workflow.
+
+---
+
 ## Document Control
 
 **File Name:** roadmap.md
 **Location:** /home/llmtutor/llm_tutor/plans/roadmap.md
-**Version:** 1.20
+**Version:** 1.21
 **Date:** 2025-12-06
-**Status:** Active - Stage 4.75 IN PROGRESS (SEC-2 claimed by tdd-workflow-engineer - 2025-12-06)
+**Status:** Active - Stage 4.75 IN PROGRESS (Infrastructure complete, SEC-2 series 4/4 complete - 2025-12-06)
 **Classification:** Internal
 
 **Related Documents:**
