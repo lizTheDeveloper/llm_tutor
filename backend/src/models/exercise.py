@@ -12,6 +12,7 @@ from sqlalchemy import (
     Enum as SQLEnum,
     ForeignKey,
     Float,
+    Index,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -64,9 +65,14 @@ class Exercise(Base):
     )
     difficulty: Mapped[ExerciseDifficulty] = mapped_column(
         SQLEnum(ExerciseDifficulty, name="exercise_difficulty_enum"),
-        nullable=False
+        nullable=False,
+        index=True  # DB-OPT: Index for adaptive difficulty algorithm
     )
-    programming_language: Mapped[str] = mapped_column(String(50), nullable=False)
+    programming_language: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        index=True  # DB-OPT: Index for language-based exercise generation
+    )
     topics: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # Comma-separated
 
     # Test cases (stored as JSON string)
@@ -120,7 +126,8 @@ class UserExercise(Base):
     status: Mapped[ExerciseStatus] = mapped_column(
         SQLEnum(ExerciseStatus, name="exercise_status_enum"),
         default=ExerciseStatus.PENDING,
-        nullable=False
+        nullable=False,
+        index=True  # DB-OPT: Index for progress tracking queries
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -150,6 +157,13 @@ class UserExercise(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False
+    )
+
+    # DB-OPT: Add composite index for streak calculations and exercise history
+    # Query: SELECT * FROM user_exercises WHERE user_id = X ORDER BY created_at DESC
+    # This composite index optimizes both the filter and sort operations
+    __table_args__ = (
+        Index('idx_user_exercises_user_created', 'user_id', 'created_at'),
     )
 
     def __repr__(self) -> str:

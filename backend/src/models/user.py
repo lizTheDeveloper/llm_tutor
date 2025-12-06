@@ -70,9 +70,15 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(
         SQLEnum(UserRole, name="user_role_enum"),
         default=UserRole.STUDENT,
-        nullable=False
+        nullable=False,
+        index=True  # DB-OPT: Index for admin queries
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+        index=True  # DB-OPT: Index for filtering active users
+    )
     is_mentor: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Progress tracking
@@ -82,7 +88,12 @@ class User(Base):
     last_exercise_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
     # Onboarding
-    onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    onboarding_completed: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        index=True  # DB-OPT: Index for dashboard queries
+    )
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

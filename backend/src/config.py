@@ -23,6 +23,9 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = Field(..., env="DATABASE_URL")
+    # DB-OPT: Connection pool sizing formula: workers × threads × 2 + overhead
+    # Example: 4 workers × 4 threads × 2 + 4 = 36 connections
+    # Default 20 is conservative for development (2 workers × 4 threads × 2 + 4)
     database_pool_size: int = Field(default=20, env="DATABASE_POOL_SIZE")
     database_max_overflow: int = Field(default=10, env="DATABASE_MAX_OVERFLOW")
 
