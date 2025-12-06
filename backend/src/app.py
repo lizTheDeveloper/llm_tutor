@@ -11,6 +11,8 @@ from .config import settings
 from .utils.logger import setup_logging, get_logger, log_request
 from .utils.database import init_database, get_database
 from .utils.redis_client import init_redis, get_redis
+from .services.monitoring_service import init_monitoring_service, get_monitoring_service
+from .services.metrics_collector import init_metrics_collector, get_metrics_collector
 
 
 def create_app(config_override: Optional[dict] = None) -> Quart:
@@ -89,18 +91,53 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
         session_db=settings.redis_session_db,
     )
 
+    # Initialize monitoring (OPS-1)
+    init_monitoring_service(
+        sentry_dsn=settings.sentry_dsn if settings.sentry_enabled else None,
+        environment=settings.app_env
+    )
+    init_metrics_collector()
+
+    logger.info(
+        "Monitoring initialized",
+        extra={
+            "sentry_enabled": settings.sentry_enabled,
+            "metrics_enabled": settings.metrics_enabled
+        }
+    )
+
     # Register request/response hooks
     @app.before_request
     async def before_request():
-        """Log incoming requests."""
-        from quart import request
+        """Log incoming requests and start timing."""
+        from quart import request, g
+        import time
+
         log_request(request)
+
+        # Start request timer for metrics (OPS-1)
+        g.request_start_time = time.time()
 
     @app.after_request
     async def after_request(response):
-        """Log outgoing responses."""
-        from quart import request
+        """Log outgoing responses and record metrics."""
+        from quart import request, g
+        import time
+
         log_request(request, response)
+
+        # Record request metrics (OPS-1)
+        if settings.metrics_enabled and hasattr(g, 'request_start_time'):
+            duration = time.time() - g.request_start_time
+            metrics_collector = get_metrics_collector()
+
+            metrics_collector.record_request_latency(
+                endpoint=request.path,
+                method=request.method,
+                status_code=response.status_code,
+                duration_seconds=duration
+            )
+
         return response
 
     # Register error handlers
@@ -123,6 +160,11 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
             exc_info=True,
             extra={"error": str(error)},
         )
+
+        # Capture in Sentry (OPS-1)
+        monitoring_service = get_monitoring_service()
+        monitoring_service.capture_exception(error)
+
         return jsonify(
             {
                 "error": "Internal Server Error",
@@ -139,6 +181,11 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
             exc_info=True,
             extra={"error": str(error)},
         )
+
+        # Capture in Sentry (OPS-1)
+        monitoring_service = get_monitoring_service()
+        monitoring_service.capture_exception(error)
+
         return jsonify(
             {
                 "error": "Internal Server Error",
@@ -195,6 +242,21 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
             health_status["redis"] = "error"
             health_status["status"] = "unhealthy"
 
+        # Check monitoring status (OPS-1)
+        try:
+            monitoring_service = get_monitoring_service()
+            health_status["monitoring"] = {
+                "sentry": "enabled" if monitoring_service.sentry_enabled else "disabled",
+                "metrics": "enabled" if settings.metrics_enabled else "disabled"
+            }
+        except Exception as exception:
+            logger.error(
+                "Monitoring health check failed",
+                exc_info=True,
+                extra={"exception": str(exception)},
+            )
+            health_status["monitoring"] = {"status": "error"}
+
         status_code = 200 if health_status["status"] == "healthy" else 503
         return jsonify(health_status), status_code
 
@@ -215,11 +277,48 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
                 "environment": settings.app_env,
                 "endpoints": {
                     "health": "/health",
+                    "metrics": "/metrics",
                     "api": "/api/v1",
                     "docs": "/docs",
                 },
             }
         )
+
+    # Prometheus metrics endpoint (OPS-1)
+    @app.route("/metrics", methods=["GET"])
+    async def metrics():
+        """
+        Prometheus metrics endpoint.
+
+        Exposes application metrics in Prometheus text format:
+        - HTTP request latency and counts
+        - LLM API costs and usage
+        - Database query performance
+        - Active users
+        - Business metrics
+
+        Returns:
+            Prometheus text format metrics
+        """
+        if not settings.metrics_enabled:
+            return jsonify({"error": "Metrics disabled"}), 404
+
+        try:
+            metrics_collector = get_metrics_collector()
+            prometheus_data = metrics_collector.generate_prometheus_metrics()
+
+            from quart import Response
+            return Response(
+                prometheus_data,
+                mimetype=metrics_collector.get_content_type()
+            )
+        except Exception as exception:
+            logger.error(
+                "Metrics endpoint error",
+                exc_info=True,
+                extra={"exception": str(exception)}
+            )
+            return jsonify({"error": "Metrics generation failed"}), 500
 
     # Register security headers middleware
     from .middleware.security_headers import add_security_headers, add_request_size_limit

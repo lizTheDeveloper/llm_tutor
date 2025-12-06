@@ -58,3 +58,8 @@ python-json-logger==2.0.7
 
 # Configuration
 pyyaml==6.0.1
+
+# Monitoring & Observability (OPS-1)
+sentry-sdk==2.20.0  # Error tracking and performance monitoring
+prometheus-client==0.21.1  # Prometheus metrics client
+prometheus-async==25.1.0  # Async support for Prometheus

@@ -110,6 +110,13 @@ class Settings(BaseSettings):
     # Cost warning threshold (percentage of daily limit)
     cost_warning_threshold: float = Field(default=0.8, env="COST_WARNING_THRESHOLD")
 
+    # Monitoring & Observability (OPS-1)
+    sentry_dsn: Optional[str] = Field(None, env="SENTRY_DSN")
+    sentry_enabled: bool = Field(default=False, env="SENTRY_ENABLED")
+    sentry_sample_rate: float = Field(default=1.0, env="SENTRY_SAMPLE_RATE")
+    sentry_traces_sample_rate: float = Field(default=0.1, env="SENTRY_TRACES_SAMPLE_RATE")
+    metrics_enabled: bool = Field(default=True, env="METRICS_ENABLED")
+
     @field_validator("secret_key", "jwt_secret_key")
     @classmethod
     def validate_secret_strength(cls, value: SecretStr) -> SecretStr:
