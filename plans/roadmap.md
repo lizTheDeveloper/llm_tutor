@@ -680,9 +680,10 @@
 4. Improve test coverage to 80%+
 
 **Files Created**:
-- `docs/architectural-review-report.md` (1,843 lines)
-- `docs/anti-patterns.md` (1,232 lines)
-- `docs/critical-issues-for-roadmap.md` (854 lines)
+- `devlog/arch-review/architectural-review-report.md` (1,843 lines)
+- `devlog/arch-review/anti-patterns-checklist.md` (1,232 lines)
+- `devlog/arch-review/critical-issues-for-roadmap.md` (854 lines)
+- `devlog/arch-review/README.md` (index and summary)
 
 ---
 
@@ -1676,8 +1677,9 @@ All completed work archived in `/Users/annhoward/src/llm_tutor/plans/completed/r
 - requirements.md (v1.2) - Source requirements
 - priorities.md (v1.0) - Feature prioritization
 - completed/roadmap-archive.md - Stages 1, 2, 3 complete
-- docs/architectural-review-report.md (v1.0 - 2025-12-06) - Comprehensive architectural review
-- docs/anti-patterns-checklist.md (v1.0 - 2025-12-06) - Anti-patterns prevention guide
+- devlog/arch-review/architectural-review-report.md (v1.0 - 2025-12-06) - Comprehensive architectural review
+- devlog/arch-review/anti-patterns-checklist.md (v1.0 - 2025-12-06) - Anti-patterns prevention guide
+- devlog/arch-review/critical-issues-for-roadmap.md (v1.0 - 2025-12-06) - Escalated issues for planning
 
 ---
 
