@@ -1,0 +1,104 @@
+# Pre-commit hooks for CodeMentor project
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Prevent secrets from being committed
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        name: Detect secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: >
+          (?x)^(
+            .*/\.env\.example|
+            .*/package-lock\.json|
+            .*/yarn\.lock|
+            .*/poetry\.lock
+          )$
+
+  # Check for large files (prevent accidentally committing large secrets/data)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+        name: Check for large files
+
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+
+      - id: check-yaml
+        name: Check YAML syntax
+
+      - id: end-of-file-fixer
+        name: Fix end of files
+
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+
+      - id: mixed-line-ending
+        name: Fix mixed line endings
+
+  # Prevent .env files from being committed
+  - repo: local
+    hooks:
+      - id: prevent-env-files
+        name: Prevent .env files from being committed
+        entry: |
+          python -c "
+          import sys
+          env_files = [f for f in sys.argv[1:] if '.env' in f and not f.endswith('.env.example')]
+          if env_files:
+              print('\nERROR: .env files must NOT be committed!')
+              print('Blocked files:', ', '.join(env_files))
+              print('\nIf you need to store configuration templates:')
+              print('  1. Add values to .env.example instead')
+              print('  2. Ensure .env is in .gitignore')
+              print('  3. Use git rm --cached .env if already tracked')
+              sys.exit(1)
+          "
+        language: system
+        pass_filenames: true
+        files: \.env$
+
+  # Python code quality
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        name: Format Python code with Black
+        language_version: python3.11
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: Sort Python imports
+        args: ["--profile", "black"]
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        name: Lint Python code with Flake8
+        args: ['--max-line-length=120', '--extend-ignore=E203,W503']
+
+  # TypeScript/JavaScript code quality
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        name: Format frontend code with Prettier
+        files: \.(ts|tsx|js|jsx|json|css|scss|md)$
+        exclude: node_modules/
+
+  # Security scanning
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        name: Security scan Python code
+        args: ['-r', 'backend/src']
+        pass_filenames: false

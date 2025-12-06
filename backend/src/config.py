@@ -4,7 +4,7 @@ Loads settings from environment variables and provides typed configuration objec
 """
 import os
 from typing import Optional, List
-from pydantic import validator, field_validator, Field, SecretStr
+from pydantic import validator, field_validator, model_validator, Field, SecretStr
 from pydantic_settings import BaseSettings
 
 
@@ -120,6 +120,89 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",")]
         return value
+
+    @model_validator(mode='after')
+    def validate_production_config(self) -> 'Settings':
+        """
+        Validate production-specific configuration requirements.
+
+        This validator ensures safe production deployment by:
+        1. Rejecting weak/development secrets
+        2. Requiring HTTPS URLs in production
+        3. Validating database/Redis URL formats
+        4. Requiring LLM API keys if needed
+
+        Addresses CRIT-3: Configuration Validation Incomplete
+        """
+        if self.app_env != "production":
+            # Only validate production environments
+            return self
+
+        # 1. Detect development secrets (common weak patterns)
+        dev_secret_patterns = ["changeme", "password", "secret", "test", "development", "default"]
+
+        for secret_field in ["secret_key", "jwt_secret_key"]:
+            secret_value = getattr(self, secret_field).get_secret_value().lower()
+
+            for pattern in dev_secret_patterns:
+                if pattern in secret_value:
+                    raise ValueError(
+                        f"Production {secret_field} appears to be a development secret! "
+                        f"Contains '{pattern}'. Use a strong random secret: "
+                        f"python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                    )
+
+        # 2. Require HTTPS for frontend and backend URLs in production
+        if not self.frontend_url.startswith("https://"):
+            raise ValueError(
+                f"FRONTEND_URL must use HTTPS in production. "
+                f"Got: {self.frontend_url}. "
+                f"HTTP is insecure for production deployment."
+            )
+
+        if not self.backend_url.startswith("https://"):
+            raise ValueError(
+                f"BACKEND_URL must use HTTPS in production. "
+                f"Got: {self.backend_url}. "
+                f"HTTP is insecure for production deployment."
+            )
+
+        # 3. Validate database URL format (PostgreSQL)
+        if not self.database_url.startswith("postgresql://") and not self.database_url.startswith("postgres://"):
+            raise ValueError(
+                f"DATABASE_URL must be a valid PostgreSQL connection string in production. "
+                f"Expected format: postgresql://user:password@host:port/database. "
+                f"Got URL starting with: {self.database_url.split('://')[0] if '://' in self.database_url else 'invalid'}"
+            )
+
+        # 4. Validate Redis URL format
+        if not self.redis_url.startswith("redis://") and not self.redis_url.startswith("rediss://"):
+            raise ValueError(
+                f"REDIS_URL must be a valid Redis connection string in production. "
+                f"Expected format: redis://host:port/db or rediss://host:port/db (SSL). "
+                f"Got URL starting with: {self.redis_url.split('://')[0] if '://' in self.redis_url else 'invalid'}"
+            )
+
+        # 5. Require LLM API key if GROQ is primary provider
+        if self.llm_primary_provider == "groq" and not self.groq_api_key:
+            raise ValueError(
+                f"GROQ_API_KEY is required in production when LLM_PRIMARY_PROVIDER=groq. "
+                f"Get an API key from: https://console.groq.com/"
+            )
+
+        # 6. Require LLM API key if OpenAI is primary provider
+        if self.llm_primary_provider == "openai" and not self.openai_api_key:
+            raise ValueError(
+                f"OPENAI_API_KEY is required in production when LLM_PRIMARY_PROVIDER=openai."
+            )
+
+        # 7. Require LLM API key if Anthropic is primary provider
+        if self.llm_primary_provider == "anthropic" and not self.anthropic_api_key:
+            raise ValueError(
+                f"ANTHROPIC_API_KEY is required in production when LLM_PRIMARY_PROVIDER=anthropic."
+            )
+
+        return self
 
     class Config:
         """Pydantic configuration."""
