@@ -13,7 +13,7 @@ pgvector==0.2.4
 # Authentication & Security
 pyjwt==2.8.0
 bcrypt==4.1.2
-python-multipart==0.0.6
+python-multipart==0.0.18
 
 # API Documentation
 quart-openapi==1.7.2
@@ -30,7 +30,7 @@ aioredis==2.0.1
 
 # HTTP Client
 httpx==0.25.2
-aiohttp==3.9.1
+aiohttp==3.12.14
 aiofiles==23.2.1
 
 # LLM Integration
@@ -48,7 +48,7 @@ pytest-cov==4.1.0
 
 # Development
 python-dotenv==1.0.0
-black==23.12.1
+black==24.3.0
 pylint==3.0.3
 mypy==1.7.1
 
