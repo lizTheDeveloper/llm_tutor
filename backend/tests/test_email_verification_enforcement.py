@@ -91,7 +91,8 @@ class TestRequireVerifiedEmailDecorator:
 
     @pytest.mark.asyncio
     async def test_decorator_with_oauth_user_allows_access(
-        self, client, test_user_oauth, auth_headers_oauth
+        self, client, test_user_oauth, auth_headers_oauth,
+        mock_jwt_auth_factory, patched_get_session
     ):
         """
         Test that OAuth users (auto-verified) can access protected routes.
@@ -100,13 +101,14 @@ class TestRequireVerifiedEmailDecorator:
         When: User attempts to access a protected route
         Then: Request is allowed
         """
-        response = await client.get(
-            "/api/exercises/daily",
-            headers=auth_headers_oauth
-        )
+        with mock_jwt_auth_factory(test_user_oauth):
+            response = await client.get(
+                "/api/exercises/daily",
+                headers=auth_headers_oauth
+            )
 
-        # Should NOT get 403 for email verification
-        assert response.status_code != 403 or "email verification" not in (await response.get_json()).get("error", "").lower()
+            # Should NOT get 403 for email verification
+            assert response.status_code != 403 or "email verification" not in (await response.get_json()).get("error", "").lower()
 
 
 class TestEmailVerificationWorkflow:
@@ -376,78 +378,86 @@ class TestProtectedRoutes:
 
     @pytest.mark.asyncio
     async def test_daily_exercise_requires_verification(
-        self, client, test_user_unverified, auth_headers_unverified
+        self, client, test_user_unverified, auth_headers_unverified,
+        mock_jwt_auth_factory, patched_get_session
     ):
         """
         Test that daily exercise endpoint requires email verification.
 
         Route: GET /api/exercises/daily
         """
-        response = await client.get(
-            "/api/exercises/daily",
-            headers=auth_headers_unverified
-        )
+        with mock_jwt_auth_factory(test_user_unverified):
+            response = await client.get(
+                "/api/exercises/daily",
+                headers=auth_headers_unverified
+            )
 
-        assert response.status_code == 403
-        data = await response.get_json()
-        assert "email verification" in data["error"].lower()
+            assert response.status_code == 403
+            data = await response.get_json()
+            assert "email verification" in data["error"].lower()
 
     @pytest.mark.asyncio
     async def test_submit_exercise_requires_verification(
-        self, client, test_user_unverified, auth_headers_unverified
+        self, client, test_user_unverified, auth_headers_unverified,
+        mock_jwt_auth_factory, patched_get_session
     ):
         """
         Test that submit exercise endpoint requires email verification.
 
         Route: POST /api/exercises/{exercise_id}/submit
         """
-        response = await client.post(
-            "/api/exercises/1/submit",
-            headers=auth_headers_unverified,
-            json={"code": "print('hello')"}
-        )
+        with mock_jwt_auth_factory(test_user_unverified):
+            response = await client.post(
+                "/api/exercises/1/submit",
+                headers=auth_headers_unverified,
+                json={"code": "print('hello')"}
+            )
 
-        assert response.status_code == 403
-        data = await response.get_json()
-        assert "email verification" in data["error"].lower()
+            assert response.status_code == 403
+            data = await response.get_json()
+            assert "email verification" in data["error"].lower()
 
     @pytest.mark.asyncio
     async def test_chat_requires_verification(
-        self, client, test_user_unverified, auth_headers_unverified
+        self, client, test_user_unverified, auth_headers_unverified,
+        mock_jwt_auth_factory, patched_get_session
     ):
         """
         Test that chat endpoints require email verification.
 
         Route: POST /api/chat/conversations/{conversation_id}/messages
         """
-        response = await client.post(
-            "/api/chat/conversations/1/messages",
-            headers=auth_headers_unverified,
-            json={"content": "Hello"}
-        )
+        with mock_jwt_auth_factory(test_user_unverified):
+            response = await client.post(
+                "/api/chat/conversations/1/messages",
+                headers=auth_headers_unverified,
+                json={"content": "Hello"}
+            )
 
-        assert response.status_code == 403
-        data = await response.get_json()
-        assert "email verification" in data["error"].lower()
+            assert response.status_code == 403
+            data = await response.get_json()
+            assert "email verification" in data["error"].lower()
 
     @pytest.mark.asyncio
     async def test_profile_update_requires_verification(
-        self, client, test_user_unverified, auth_headers_unverified
+        self, client, test_user_unverified, auth_headers_unverified,
+        mock_jwt_auth_factory, patched_get_session
     ):
         """
         Test that profile update endpoint requires email verification.
 
         Route: PUT /api/users/profile
         """
-        response = await client.put(
-            "/api/users/profile",
-            headers=auth_headers_unverified,
-            json={"name": "Updated Name"}
-        )
+        with mock_jwt_auth_factory(test_user_unverified):
+            response = await client.put(
+                "/api/users/profile",
+                headers=auth_headers_unverified,
+                json={"name": "Updated Name"}
+            )
 
-        assert response.status_code == 403
-        data = await response.get_json()
-        assert "email verification" in data["error"].lower()
+            assert response.status_code == 403
+            data = await response.get_json()
+            assert "email verification" in data["error"].lower()
 
     @pytest.mark.asyncio
     async def test_public_routes_do_not_require_verification(
