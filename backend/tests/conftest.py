@@ -248,7 +248,9 @@ async def patched_get_session(db_session):
 
     with patch('src.api.auth.get_session', side_effect=mock_get_session), \
          patch('src.api.chat.get_session', side_effect=mock_get_session), \
-         patch('src.api.users.get_session', side_effect=mock_get_session):
+         patch('src.api.users.get_session', side_effect=mock_get_session), \
+         patch('src.api.exercises.get_session', side_effect=mock_get_session), \
+         patch('src.api.progress.get_session', side_effect=mock_get_session):
         yield
 
     # Restore original commit
@@ -264,3 +266,37 @@ def mock_auth_session():
 
     with patch('src.services.auth_service.AuthService.create_session', new_callable=AsyncMock) as mock_session:
         yield mock_session
+
+
+@pytest.fixture
+def mock_jwt_auth_factory(app):
+    """
+    Factory fixture for creating JWT auth mocks with custom user data.
+    Returns a context manager that can be used to mock authentication for any user.
+
+    Usage:
+        async def test_example(client, test_user, mock_jwt_auth_factory, patched_get_session):
+            with mock_jwt_auth_factory(test_user):
+                response = await client.get('/api/protected-endpoint')
+    """
+    from unittest.mock import patch, AsyncMock
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _mock_auth(user):
+        # Mock the auth service methods that require_auth decorator uses
+        async def mock_validate_session(token):
+            return True
+
+        mock_payload = {
+            "user_id": user.id,
+            "email": user.email,
+            "role": getattr(user, 'role', 'student'),
+            "jti": "test-jti"
+        }
+
+        with patch('src.services.auth_service.AuthService.verify_jwt_token', return_value=mock_payload):
+            with patch('src.services.auth_service.AuthService.validate_session', new_callable=AsyncMock, side_effect=mock_validate_session):
+                yield
+
+    return _mock_auth

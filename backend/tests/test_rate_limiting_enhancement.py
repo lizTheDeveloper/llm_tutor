@@ -28,7 +28,7 @@ class TestTieredRateLimiting:
     """Tests for tiered rate limiting based on user role."""
 
     @pytest.mark.asyncio
-    async def test_student_chat_rate_limit(self, test_client, auth_headers, db_session):
+    async def test_student_chat_rate_limit(self, client, auth_headers, db_session):
         """Test chat endpoint rate limiting for student users."""
         # Create student user
         user = User(
@@ -53,7 +53,7 @@ class TestTieredRateLimiting:
             # Make requests up to student limit (should be lower than admin)
             # Students: 10 chat requests per minute
             for i in range(10):
-                response = await test_client.post(
+                response = await client.post(
                     "/api/chat/message",
                     json={"message": f"Test message {i}"},
                     headers=auth_headers
@@ -61,7 +61,7 @@ class TestTieredRateLimiting:
                 assert response.status_code in [200, 201], f"Request {i} failed"
 
             # 11th request should be rate limited
-            response = await test_client.post(
+            response = await client.post(
                 "/api/chat/message",
                 json={"message": "Should be rate limited"},
                 headers=auth_headers
@@ -72,7 +72,7 @@ class TestTieredRateLimiting:
             assert "Retry-After" in response.headers
 
     @pytest.mark.asyncio
-    async def test_admin_higher_rate_limit(self, test_client, db_session):
+    async def test_admin_higher_rate_limit(self, client, db_session):
         """Test that admin users have higher rate limits than students."""
         # Create admin user
         admin = User(
@@ -101,7 +101,7 @@ class TestTieredRateLimiting:
 
             # Admins: 30 chat requests per minute (3x student limit)
             for i in range(30):
-                response = await test_client.post(
+                response = await client.post(
                     "/api/chat/message",
                     json={"message": f"Admin test {i}"},
                     headers=admin_headers
@@ -109,7 +109,7 @@ class TestTieredRateLimiting:
                 assert response.status_code in [200, 201], f"Admin request {i} should succeed"
 
             # 31st request should be rate limited
-            response = await test_client.post(
+            response = await client.post(
                 "/api/chat/message",
                 json={"message": "Should be rate limited"},
                 headers=admin_headers
@@ -121,7 +121,7 @@ class TestLLMEndpointRateLimits:
     """Tests for per-endpoint rate limits on expensive LLM operations."""
 
     @pytest.mark.asyncio
-    async def test_exercise_generation_rate_limit(self, test_client, auth_headers, db_session):
+    async def test_exercise_generation_rate_limit(self, client, auth_headers, db_session):
         """Test exercise generation endpoint has stricter rate limiting."""
         # Exercise generation: 3 per hour (expensive operation)
         with patch('src.services.exercise_service.ExerciseService.generate_personalized_exercise') as mock_gen:
@@ -141,7 +141,7 @@ class TestLLMEndpointRateLimits:
 
             # Make 3 requests (should succeed)
             for i in range(3):
-                response = await test_client.post(
+                response = await client.post(
                     "/api/exercises/generate",
                     json={
                         "programming_language": "python",
@@ -153,7 +153,7 @@ class TestLLMEndpointRateLimits:
                 assert response.status_code in [200, 201], f"Request {i} should succeed"
 
             # 4th request should be rate limited
-            response = await test_client.post(
+            response = await client.post(
                 "/api/exercises/generate",
                 json={
                     "programming_language": "python",
@@ -167,7 +167,7 @@ class TestLLMEndpointRateLimits:
             assert "hour" in data["error"]["message"].lower() or "3" in data["error"]["message"]
 
     @pytest.mark.asyncio
-    async def test_hint_request_rate_limit(self, test_client, auth_headers, db_session):
+    async def test_hint_request_rate_limit(self, client, auth_headers, db_session):
         """Test hint request endpoint has moderate rate limiting."""
         # Hints: 5 per hour (moderate cost)
         with patch('src.services.exercise_service.ExerciseService.generate_hint') as mock_hint:
@@ -175,7 +175,7 @@ class TestLLMEndpointRateLimits:
 
             # Make 5 requests (should succeed)
             for i in range(5):
-                response = await test_client.post(
+                response = await client.post(
                     f"/api/exercises/1/hint",
                     json={"current_code": "# test code"},
                     headers=auth_headers
@@ -185,7 +185,7 @@ class TestLLMEndpointRateLimits:
                     pytest.fail(f"Request {i} was rate limited (should allow 5)")
 
             # 6th request should be rate limited
-            response = await test_client.post(
+            response = await client.post(
                 f"/api/exercises/1/hint",
                 json={"current_code": "# test code"},
                 headers=auth_headers
@@ -193,7 +193,7 @@ class TestLLMEndpointRateLimits:
             assert response.status_code == 429
 
     @pytest.mark.asyncio
-    async def test_chat_stream_rate_limit(self, test_client, auth_headers):
+    async def test_chat_stream_rate_limit(self, client, auth_headers):
         """Test streaming chat endpoint has same limits as regular chat."""
         # Chat stream: 10 per minute for students
         with patch('src.services.llm.llm_service.LLMService.generate_completion_stream') as mock_stream:
@@ -204,7 +204,7 @@ class TestLLMEndpointRateLimits:
 
             # Make 10 requests
             for i in range(10):
-                response = await test_client.post(
+                response = await client.post(
                     "/api/chat/stream",
                     json={"message": f"Stream test {i}"},
                     headers=auth_headers
@@ -212,7 +212,7 @@ class TestLLMEndpointRateLimits:
                 assert response.status_code in [200, 201], f"Request {i} should succeed"
 
             # 11th request should be rate limited
-            response = await test_client.post(
+            response = await client.post(
                 "/api/chat/stream",
                 json={"message": "Should be rate limited"},
                 headers=auth_headers
@@ -247,7 +247,7 @@ class TestCostTracking:
         assert abs(total_cost - 0.23) < 0.001  # Float comparison with tolerance
 
     @pytest.mark.asyncio
-    async def test_daily_cost_limit_enforcement(self, test_client, auth_headers, db_session):
+    async def test_daily_cost_limit_enforcement(self, client, auth_headers, db_session):
         """Test that daily cost limits are enforced."""
         # Set daily cost limit to $1.00 for students
         redis = get_redis()
@@ -269,7 +269,7 @@ class TestCostTracking:
             )
 
             # Request should be blocked due to cost limit
-            response = await test_client.post(
+            response = await client.post(
                 "/api/chat/message",
                 json={"message": "This would exceed cost limit"},
                 headers=auth_headers
@@ -311,7 +311,7 @@ class TestRateLimitHeaders:
     """Tests for rate limit response headers."""
 
     @pytest.mark.asyncio
-    async def test_rate_limit_headers_present(self, test_client, auth_headers):
+    async def test_rate_limit_headers_present(self, client, auth_headers):
         """Test that rate limit headers are included in responses."""
         with patch('src.services.llm.llm_service.LLMService.generate_completion') as mock_llm:
             mock_llm.return_value = Mock(
@@ -321,7 +321,7 @@ class TestRateLimitHeaders:
                 finish_reason="stop"
             )
 
-            response = await test_client.post(
+            response = await client.post(
                 "/api/chat/message",
                 json={"message": "Test"},
                 headers=auth_headers
@@ -333,7 +333,7 @@ class TestRateLimitHeaders:
             assert "X-RateLimit-Reset" in response.headers
 
     @pytest.mark.asyncio
-    async def test_retry_after_header_on_limit(self, test_client, auth_headers):
+    async def test_retry_after_header_on_limit(self, client, auth_headers):
         """Test that Retry-After header is present when rate limited."""
         with patch('src.services.llm.llm_service.LLMService.generate_completion') as mock_llm:
             mock_llm.return_value = Mock(
@@ -345,14 +345,14 @@ class TestRateLimitHeaders:
 
             # Exhaust rate limit
             for _ in range(10):
-                await test_client.post(
+                await client.post(
                     "/api/chat/message",
                     json={"message": "Test"},
                     headers=auth_headers
                 )
 
             # Next request should include Retry-After
-            response = await test_client.post(
+            response = await client.post(
                 "/api/chat/message",
                 json={"message": "Test"},
                 headers=auth_headers
@@ -439,7 +439,7 @@ class TestCostAlerts:
         assert is_warning is True
 
     @pytest.mark.asyncio
-    async def test_cost_limit_blocks_requests(self, test_client, auth_headers, db_session):
+    async def test_cost_limit_blocks_requests(self, client, auth_headers, db_session):
         """Test that exceeding cost limit blocks further LLM requests."""
         redis = get_redis()
         user_id = 1
@@ -451,7 +451,7 @@ class TestCostAlerts:
 
         with patch('src.services.llm.llm_service.LLMService.generate_completion'):
             # Any LLM request should now be blocked
-            response = await test_client.post(
+            response = await client.post(
                 "/api/chat/message",
                 json={"message": "Should be blocked by cost limit"},
                 headers=auth_headers
