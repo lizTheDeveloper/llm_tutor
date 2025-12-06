@@ -288,19 +288,220 @@
 
 ---
 
+## Stage 4: Daily Exercise System & Progress Tracking
+
+**Goal**: Build the core daily exercise generation and adaptive difficulty system with progress tracking.
+
+**Status**: READY - All dependencies complete (Stage 3 delivered)
+
+**Prerequisites**: All Stage 3 work complete (onboarding, chat, user memory operational)
+
+---
+
+#### Work Stream D1: Exercise Generation & Management Backend
+**Agent**: TDD Workflow Engineer (tdd-workflow-engineer)
+**Dependencies**: None (B2 LLM Integration, B3 Database Schema, C2 User Memory complete)
+**Status**: IN PROGRESS
+**Claimed**: 2025-12-06
+**Parallel With**: D2, D3, D4
+
+**Tasks:**
+- [ ] Exercise database schema and models
+- [ ] Exercise template system
+- [ ] Daily exercise generation endpoint (POST /api/exercises/daily)
+- [ ] Exercise retrieval endpoint (GET /api/exercises/{exercise_id})
+- [ ] Exercise list endpoint (GET /api/exercises)
+- [ ] Exercise submission endpoint (POST /api/exercises/{exercise_id}/submit)
+- [ ] Hint request endpoint (POST /api/exercises/{exercise_id}/hint)
+- [ ] LLM integration for exercise generation
+- [ ] Personalization based on user profile and memory
+- [ ] Multi-language support (Python, JavaScript, Java, etc.)
+- [ ] Exercise type variety (algorithms, debugging, practical apps)
+- [ ] Validation and error handling
+
+**Deliverable**: Exercise generation and management API
+
+**Effort**: L
+
+**Done When**:
+- [ ] API endpoints functional and tested (7+ endpoints)
+- [ ] Exercises generated based on user language preference
+- [ ] Exercises personalized to user skill level and interests
+- [ ] Exercise includes clear objectives and success criteria
+- [ ] Hints provided without revealing full solution
+- [ ] Integration tests passing (15+ tests)
+- [ ] LLM prompts optimized for quality exercises
+
+**Technical Notes**:
+- Leverage existing LLM integration from B2
+- Use user memory from C2 for personalization
+- Store exercises in PostgreSQL
+- Exercise difficulty range: 1-10 scale
+- Support REQ-EXERCISE-001 through REQ-EXERCISE-006
+
+---
+
+#### Work Stream D2: Progress Tracking Backend
+**Agent**: UNCLAIMED
+**Dependencies**: None (B3 Database Schema complete)
+**Status**: AVAILABLE
+**Parallel With**: D1, D3, D4
+
+**Tasks:**
+- [ ] Progress tracking database schema
+- [ ] User statistics calculation service
+- [ ] Progress metrics endpoint (GET /api/progress)
+- [ ] Achievement tracking system
+- [ ] Streak calculation and maintenance
+- [ ] Exercise completion tracking
+- [ ] Performance metrics storage
+- [ ] Statistics aggregation (daily, weekly, monthly)
+- [ ] Achievement unlock logic
+- [ ] Badge assignment endpoint
+- [ ] Progress history endpoint
+- [ ] Export progress data endpoint
+
+**Deliverable**: Progress tracking and achievement system API
+
+**Effort**: M
+
+**Done When**:
+- [ ] API endpoints functional and tested (6+ endpoints)
+- [ ] User progress accurately tracked
+- [ ] Achievements unlock correctly
+- [ ] Streak tracking functional (consecutive days)
+- [ ] Performance metrics calculated
+- [ ] Integration tests passing (12+ tests)
+- [ ] Progress data exportable
+
+**Technical Notes**:
+- Support REQ-PROGRESS-001 through REQ-PROGRESS-005
+- Badge system for milestones (7, 30, 100 day streaks, etc.)
+- Track: exercises completed, current streak, skill levels
+- Timezone-aware streak calculation
+
+---
+
+#### Work Stream D3: Difficulty Adaptation Engine
+**Agent**: UNCLAIMED
+**Dependencies**: D1 (needs exercise completion data)
+**Status**: BLOCKED (waiting for D1)
+**Parallel With**: D2, D4
+
+**Tasks:**
+- [ ] Difficulty calculation algorithm
+- [ ] Performance analysis service
+- [ ] Adaptation logic implementation
+- [ ] Difficulty adjustment endpoint (POST /api/exercises/adjust-difficulty)
+- [ ] User performance tracking
+- [ ] Success/struggle detection logic
+- [ ] Difficulty level persistence
+- [ ] Notification system for difficulty changes
+- [ ] Difficulty history tracking
+- [ ] Analytics for adaptation effectiveness
+- [ ] Edge case handling (new users, long gaps)
+- [ ] Manual difficulty override (user preference)
+
+**Deliverable**: Adaptive difficulty adjustment engine
+
+**Effort**: M
+
+**Done When**:
+- [ ] Difficulty increases after 3 consecutive successes
+- [ ] Difficulty decreases after 2 consecutive struggles
+- [ ] User notified of difficulty changes
+- [ ] Adaptation appropriate to stated skill level
+- [ ] Performance metrics drive adaptation
+- [ ] Integration tests passing (10+ tests)
+- [ ] Algorithm tested with various user patterns
+
+**Technical Notes**:
+- Support REQ-EXERCISE-003 (adaptive difficulty)
+- Track: completion time, hints requested, submission attempts
+- Difficulty scale: 1-10
+- Consider time since last exercise
+- Respect user skill level bounds
+
+---
+
+#### Work Stream D4: Exercise UI Components
+**Agent**: UNCLAIMED
+**Dependencies**: None (A3 Frontend Framework, C4 Onboarding UI complete)
+**Status**: AVAILABLE
+**Parallel With**: D1, D2, D3
+
+**Tasks:**
+- [ ] Exercise dashboard page
+- [ ] Daily exercise display component
+- [ ] Exercise detail view component
+- [ ] Code editor/submission component
+- [ ] Hint request UI
+- [ ] Exercise completion workflow
+- [ ] Progress dashboard page
+- [ ] Achievement showcase component
+- [ ] Streak calendar component
+- [ ] Skill radar chart component
+- [ ] Exercise history list
+- [ ] Redux exerciseSlice
+- [ ] Redux progressSlice
+- [ ] Routes configuration
+- [ ] Integration with D1/D2 backend APIs
+
+**Deliverable**: Complete exercise and progress UI
+
+**Effort**: L
+
+**Done When**:
+- [ ] Dashboard shows daily exercise prominently
+- [ ] Users can view exercise details
+- [ ] Users can submit solutions
+- [ ] Users can request hints
+- [ ] Users can mark exercises complete
+- [ ] Progress dashboard displays all metrics
+- [ ] Achievement badges displayed
+- [ ] Streak calendar shows activity
+- [ ] Responsive on mobile/tablet/desktop
+- [ ] Integration with backend (13+ endpoints)
+- [ ] Test coverage (70%+ passing)
+
+**Technical Notes**:
+- Use Monaco Editor or CodeMirror for code input
+- Syntax highlighting for multiple languages
+- LocalStorage for draft solutions
+- Celebration animations for achievements
+- Responsive charts (Chart.js or Recharts)
+
+---
+
+## INTEGRATION CHECKPOINT - Stage 4 Complete
+
+**Completion Criteria:**
+- [ ] Users can receive daily personalized exercises
+- [ ] Exercise difficulty adapts based on performance
+- [ ] Progress tracked accurately (exercises, streaks, achievements)
+- [ ] Achievements unlock and display correctly
+- [ ] Exercise UI integrated with backend
+- [ ] Progress dashboard integrated with backend
+- [ ] End-to-end testing complete
+- [ ] New user can complete exercise workflow
+- [ ] Adaptive difficulty demonstrable
+
+**Backend Progress**: 0/3 work streams (D1, D2, D3)
+**Frontend Progress**: 0/1 work streams (D4)
+
+**Stage 4 Status**: NOT STARTED
+
+**Next Stage**: Phase 1.5 - Enhanced MVP Features
+
+---
+
 ## Backlog
 
 ### Future Stages (Not Yet Started)
-- **Phase 0, Stage 4**: Daily Exercises & Progress Tracking
-  - D1: Exercise Generation & Management (backend)
-  - D2: Progress Tracking Backend
-  - D3: Difficulty Adaptation Engine
-  - D4: Exercise UI Components
-
 - **Phase 1.5**: Enhanced MVP Features
-  - GitHub Integration
-  - Achievement System
-  - User Dashboard
+  - GitHub Integration (partially implemented in C3)
+  - Enhanced Achievement System
+  - User Dashboard Enhancements
 
 - **Phase 2**: Community & Social Features
   - Matrix chat integration
@@ -343,9 +544,9 @@ All completed work archived in `/Users/annhoward/src/llm_tutor/plans/completed/r
 
 **File Name:** roadmap.md
 **Location:** /home/llmtutor/llm_tutor/plans/roadmap.md
-**Version:** 1.12
+**Version:** 1.13
 **Date:** 2025-12-06
-**Status:** Active - Stage 3 Complete (5/5 work streams delivered)
+**Status:** Active - Stage 4 Defined (ready for execution)
 **Classification:** Internal
 
 **Related Documents:**
