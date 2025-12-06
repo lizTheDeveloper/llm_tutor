@@ -774,20 +774,85 @@
 
 ---
 
+#### Work Stream SEC-1-FE: Frontend Cookie Authentication
+
+**Agent**: TDD Workflow Engineer (tdd-workflow-engineer)
+**Dependencies**: SEC-1 (Security Hardening backend complete)
+**Status**: ⏳ IN PROGRESS
+**Claimed**: 2025-12-06
+**Completed**: [In Progress]
+**Priority**: P0 - BLOCKER (completes SEC-1 security hardening)
+**Parallel With**: Can run independently
+
+**Tasks:**
+- [ ] Write integration tests for cookie-based authentication (2 hours)
+  - Test login flow with withCredentials
+  - Test authenticated requests use cookies
+  - Test logout clears cookies properly
+  - Test OAuth flow with cookies
+- [ ] Update Axios configuration (1 hour)
+  - Enable withCredentials globally
+  - Remove Authorization header injection
+  - Update request interceptors
+- [ ] Remove localStorage token management (1 hour)
+  - Remove token storage after login
+  - Remove token retrieval for requests
+  - Update logout to rely on cookie clearing
+- [ ] Update Redux auth slice (2 hours)
+  - Update login thunk to not expect tokens in response
+  - Update logout thunk to rely on cookies
+  - Update auth state management
+  - Test Redux integration
+- [ ] Run full test suite and fix failures (2 hours)
+  - Fix any broken auth-related tests
+  - Verify all pages still work
+  - Update test fixtures for cookies
+- [ ] Manual testing of auth flows (1 hour)
+  - Test login/logout
+  - Test OAuth flows
+  - Test protected routes
+  - Test cross-tab logout
+
+**Deliverable**: Frontend integrated with httpOnly cookie authentication ✅
+
+**Effort**: S (1 day / 9 hours)
+
+**Done When**:
+- [ ] withCredentials enabled in Axios config
+- [ ] No localStorage usage for tokens
+- [ ] Login/logout work with cookie-based auth
+- [ ] OAuth flows functional with cookies
+- [ ] All frontend tests passing
+- [ ] Manual testing confirms auth works
+- [ ] Protected routes still enforce authentication
+
+**Implementation Summary**:
+- [In Progress]
+
+**Files To Modify**:
+- `frontend/src/services/api.ts` (Axios config)
+- `frontend/src/store/slices/authSlice.ts` (Redux auth)
+- `frontend/src/pages/LoginPage.tsx` (if needed)
+- `frontend/src/pages/RegisterPage.tsx` (if needed)
+- Test files for auth flows
+
+---
+
 ## INTEGRATION CHECKPOINT - Stage 4.5 Completion
 
 **Completion Criteria:**
 - [x] All P0 security issues resolved (SEC-1 ✅)
 - [x] Database optimization complete (DB-OPT ✅ 2025-12-06)
+- [⏳] Frontend security integration (SEC-1-FE ⏳ IN PROGRESS)
 - [ ] GDPR compliance implemented (COMP-1 - future)
-- [⏳] Security audit passed (backend complete, frontend update needed)
-- [⏳] Platform ready for staging deployment (backend ready, frontend update needed)
+- [⏳] Security audit passed (backend complete, frontend in progress)
+- [⏳] Platform ready for staging deployment (backend ready, frontend in progress)
 
-**Progress**: 2/3 work streams complete (SEC-1 ✅, DB-OPT ✅)
+**Progress**: 2/3 work streams complete (SEC-1 ✅, DB-OPT ✅), 1 in progress (SEC-1-FE ⏳)
 
-**Stage 4.5 Status**: 🟡 IN PROGRESS (66% complete - 2/3 delivered)
+**Stage 4.5 Status**: 🟡 IN PROGRESS (66% complete - 2.5/3 delivered)
 
-**Next Work Streams**: COMP-1 (GDPR Compliance), or Frontend cookie auth update
+**Next Work Streams**: Complete SEC-1-FE, then COMP-1 (GDPR Compliance)
 
 ---
 
