@@ -18,12 +18,16 @@
     "@mui/icons-material": "^7.3.6",
     "@mui/material": "^7.3.6",
     "@reduxjs/toolkit": "^2.11.0",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "axios": "^1.13.2",
     "date-fns": "^4.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
     "react-redux": "^9.2.0",
-    "react-router-dom": "^7.10.1"
+    "react-router-dom": "^7.10.1",
+    "react-syntax-highlighter": "^16.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
