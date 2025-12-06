@@ -501,9 +501,10 @@
 ---
 
 #### Work Stream D4: Exercise UI Components
-**Agent**: UNCLAIMED
+**Agent**: TDD Workflow Engineer (tdd-workflow-engineer)
 **Dependencies**: None (A3 Frontend Framework, C4 Onboarding UI complete)
-**Status**: AVAILABLE
+**Status**: IN PROGRESS
+**Claimed**: 2025-12-06
 **Parallel With**: D1, D2, D3
 
 **Tasks:**
