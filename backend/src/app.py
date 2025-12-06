@@ -280,3 +280,7 @@ async def shutdown_app(app: Quart):
         )
 
     logger.info("Application shutdown complete")
+
+
+# Create application instance for ASGI servers
+app = create_app()
