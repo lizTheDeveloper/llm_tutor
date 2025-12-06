@@ -602,7 +602,100 @@
 
 **Stage 4 Status**: ✅ COMPLETE (All 4 work streams delivered - 2025-12-06)
 
-**Next Stage**: Phase 1.5 - Enhanced MVP Features
+**Next Stage**: Stage 4.5 - Security & Production Readiness
+
+---
+
+## Stage 4.5: Security & Production Readiness
+
+**Goal**: Address critical security vulnerabilities and production blockers identified in architectural review.
+
+**Status**: ACTIVE - Critical work streams from architectural review
+
+**Prerequisites**: Stage 4 complete (D1-D4 delivered)
+
+---
+
+#### Work Stream SEC-1: Security Hardening
+
+**Agent**: TDD Workflow Engineer (tdd-workflow-engineer)
+**Dependencies**: None (P0 BLOCKER - blocks all deployment)
+**Status**: 🔴 IN PROGRESS
+**Claimed**: 2025-12-06
+**Priority**: P0 - BLOCKER
+**Parallel With**: Can run alone, blocks all other deployment work
+
+**Tasks:**
+- [ ] Fix OAuth token exposure (4 hours)
+  - Implement authorization code flow (RFC 6749)
+  - Return short-lived auth code in URL (not token)
+  - Add `/api/auth/oauth/exchange` endpoint to exchange code for token
+  - Set tokens in httpOnly, secure, SameSite=strict cookies
+- [ ] Remove hardcoded URLs (1 hour)
+  - Replace all `http://localhost:3000` with `settings.frontend_url`
+  - Replace all `http://localhost:5000` with `settings.backend_url`
+  - Verify OAuth redirects use config values
+- [ ] Implement password reset session invalidation (3 hours)
+  - Add `user_sessions:{user_id}` Redis set tracking all session JTIs
+  - Update `create_session` to add JTI to user's session set
+  - Create `invalidate_all_sessions(user_id)` method
+  - Call invalidation on password reset
+- [ ] Migrate to httpOnly cookies (3 hours)
+  - Backend: Set tokens in httpOnly cookies instead of JSON response
+  - Frontend: Remove localStorage token storage
+  - Frontend: Enable `axios.defaults.withCredentials = true`
+  - Update all API calls to use cookie authentication
+- [ ] Add startup configuration validation (2 hours)
+  - Use Pydantic `SecretStr` for sensitive fields
+  - Add `@field_validator` for secret key strength (min 32 chars)
+  - Set `validate_assignment=True` in model config
+  - Verify all critical fields at module load time
+- [ ] Fix database connection leak (2 hours)
+  - Replace sync engine usage in health check with async
+  - Remove `sync_engine` from `DatabaseManager` (only used in health check)
+  - Update Alembic to use separate sync connection
+- [ ] Add security headers middleware (1 hour)
+  - Verify Content-Security-Policy header
+  - Add X-Frame-Options: DENY
+  - Add X-Content-Type-Options: nosniff
+
+**Deliverable**: Security vulnerabilities resolved, platform deployment-ready ✅
+
+**Effort**: M (2 days / 16 hours)
+
+**Done When**:
+- [ ] No tokens in URL parameters anywhere
+- [ ] All URLs loaded from `settings.frontend_url` and `settings.backend_url`
+- [ ] Password reset invalidates all active sessions for user
+- [ ] Auth tokens stored in httpOnly, secure cookies
+- [ ] Config validation fails fast on startup with missing/weak secrets
+- [ ] Health check uses async database connection only
+- [ ] Security headers present in all responses
+- [ ] Manual security test passed: OAuth flow, password reset, token handling
+- [ ] All integration tests passing with new security measures
+
+**Critical Issues Addressed**:
+- AP-CRIT-002: OAuth token exposure (CRITICAL - account compromise risk)
+- AP-CRIT-001: Hardcoded localhost URLs (CRITICAL - deployment blocker)
+- AP-CRIT-004: Password reset session invalidation (CRITICAL - security)
+- AP-SEC-001: Token storage in localStorage (HIGH - XSS vulnerability)
+
+---
+
+## INTEGRATION CHECKPOINT - Stage 4.5 Completion
+
+**Completion Criteria:**
+- [ ] All P0 security issues resolved (SEC-1 ✅)
+- [ ] Database optimization complete (DB-OPT - future)
+- [ ] GDPR compliance implemented (COMP-1 - future)
+- [ ] Security audit passed
+- [ ] Platform ready for staging deployment
+
+**Security Progress**: 0/1 complete (SEC-1 🔴 In Progress)
+
+**Stage 4.5 Status**: 🔴 ACTIVE (SEC-1 claimed 2025-12-06)
+
+**Next Work Streams**: DB-OPT (Database Optimization), COMP-1 (GDPR Compliance)
 
 ---
 
