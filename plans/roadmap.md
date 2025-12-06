@@ -616,6 +616,43 @@
 
 ---
 
+#### Work Stream DB-OPT: Database Optimization
+
+**Agent**: TDD Workflow Engineer (tdd-workflow-engineer)
+**Dependencies**: None (parallel with other Stage 4.5 work)
+**Status**: IN PROGRESS
+**Claimed**: 2025-12-06
+**Priority**: P1 - HIGH (required for production scale)
+**Parallel With**: Can run independently
+
+**Tasks:**
+- [ ] Add missing indexes (3 hours)
+  - Add index on `users.role` (admin queries)
+  - Add index on `users.is_active` (everywhere)
+  - Add index on `users.onboarding_completed` (dashboard)
+  - Add index on `exercises.difficulty` (adaptive algorithm)
+  - Add index on `exercises.language` (exercise generation)
+  - Add index on `user_exercises.status` (progress tracking)
+  - Add composite index `(user_id, created_at)` on `user_exercises` (streak calculations)
+- [ ] Generate and run migration (1 hour)
+- [ ] Remove sync database engine (2 hours)
+- [ ] Tune connection pool (1 hour)
+- [ ] Performance testing (1 hour)
+
+**Deliverable**: Optimized database with proper indexing and connection management
+
+**Effort**: M (1 day / 8 hours)
+
+**Done When**:
+- [ ] All frequently-queried columns have indexes
+- [ ] Migration successfully applied
+- [ ] EXPLAIN ANALYZE shows index usage
+- [ ] Sync engine removed, only async engine exists
+- [ ] Connection pool calculated based on worker count
+- [ ] Load test shows query times < 100ms at 10,000 users
+
+---
+
 #### Work Stream SEC-1: Security Hardening
 
 **Agent**: TDD Workflow Engineer (tdd-workflow-engineer)
