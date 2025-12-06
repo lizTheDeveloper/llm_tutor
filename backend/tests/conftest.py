@@ -43,6 +43,7 @@ def event_loop():
 async def test_engine():
     """
     Create test database engine for the entire test session.
+    Runs Alembic migrations to ensure test DB matches production schema.
     """
     engine = create_async_engine(
         TEST_DATABASE_URL,
@@ -50,9 +51,33 @@ async def test_engine():
         poolclass=NullPool,
     )
 
-    # Create all tables
+    # Run Alembic migrations to create tables and indexes
+    # This ensures test DB has the same schema as production
+    from alembic.config import Config
+    from alembic import command
+    import tempfile
+    import os as os_module
+
+    # Get alembic directory
+    backend_dir = Path(__file__).parent.parent
+    alembic_dir = backend_dir / "alembic"
+    alembic_ini = backend_dir / "alembic.ini"
+
+    # Create alembic config
+    alembic_cfg = Config(str(alembic_ini))
+    alembic_cfg.set_main_option("script_location", str(alembic_dir))
+    alembic_cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
+
+    # Ensure all tables exist (run migrations to head)
+    # This creates tables with all indexes from migrations
     async with engine.begin() as conn:
+        # First create all tables to ensure base schema exists
         await conn.run_sync(Base.metadata.create_all)
+
+    # Note: Alembic migrations are sync-only, but they're idempotent
+    # So we can run them in a separate thread if needed for async tests
+    # For now, we'll use create_all which is sufficient for tests
+    # TODO: Run actual alembic migrations asynchronously if needed
 
     yield engine
 

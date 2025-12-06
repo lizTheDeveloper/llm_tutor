@@ -74,7 +74,7 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
         app,
         allow_origin=settings.cors_origins,
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization"],
+        allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
         allow_credentials=True,
     )
 
@@ -324,6 +324,11 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
     from .middleware.security_headers import add_security_headers, add_request_size_limit
     add_security_headers(app)
     add_request_size_limit(app, max_size=16 * 1024 * 1024)  # 16MB limit
+
+    # Initialize CSRF protection (SEC-3-CSRF)
+    from .middleware.csrf_protection import validate_csrf_configuration
+    validate_csrf_configuration()
+    logger.info("CSRF protection initialized")
 
     # Register error handlers
     from .middleware.error_handler import register_error_handlers
