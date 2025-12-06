@@ -6,6 +6,8 @@ import DashboardPage from './pages/DashboardPage';
 import OnboardingPage from './pages/OnboardingPage';
 import ProfilePage from './pages/ProfilePage';
 import ChatPage from './pages/ChatPage';
+import ExerciseDashboardPage from './pages/ExerciseDashboardPage';
+import ProgressDashboardPage from './pages/ProgressDashboardPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
 export const router = createBrowserRouter([
@@ -54,6 +56,22 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <ChatPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'exercises',
+        element: (
+          <ProtectedRoute>
+            <ExerciseDashboardPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'progress',
+        element: (
+          <ProtectedRoute>
+            <ProgressDashboardPage />
           </ProtectedRoute>
         ),
       },
