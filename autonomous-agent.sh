@@ -1,9 +1,12 @@
 #!/bin/bash
 
-# Autonomous Agent - Launches Claude Code in headless mode to complete roadmap tasks using TDD workflow
+# Autonomous Agent - Launches Claude Code in headless mode to complete OpenSpec change proposals using TDD workflow
 # This script will:
-# 1. Launch Claude Code with the TDD agent to complete the next roadmap task
-# 2. Auto-commit any changes if the working tree is dirty
+# 1. List available OpenSpec change proposals
+# 2. Launch Claude Code with the TDD agent to implement the next proposal
+# 3. Update the proposal's tasks.md checklist as work progresses
+# 4. Auto-commit any changes if the working tree is dirty
+# 5. Update the roadmap to reflect completed work
 
 set -e
 
@@ -16,15 +19,38 @@ echo "==================================================================" | tee 
 echo "Autonomous Agent - Starting at $(date)" | tee -a "$LOG_FILE"
 echo "==================================================================" | tee -a "$LOG_FILE"
 
-# Phase 1: Execute TDD workflow for next roadmap task
+# Phase 0: List available OpenSpec change proposals
 echo "" | tee -a "$LOG_FILE"
-echo "Phase 1: Launching TDD Workflow Engineer..." | tee -a "$LOG_FILE"
+echo "Phase 0: Checking OpenSpec change proposals..." | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
+
+cd "$SCRIPT_DIR"
+openspec list 2>&1 | tee -a "$LOG_FILE"
+
+echo "" | tee -a "$LOG_FILE"
+
+# Phase 1: Execute TDD workflow for next OpenSpec change proposal
+echo "" | tee -a "$LOG_FILE"
+echo "Phase 1: Launching TDD Workflow Engineer with OpenSpec integration..." | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
 claude \
   --print \
   --dangerously-skip-permissions \
-  "Use the tdd-workflow-engineer agent to identify, claim, and complete the next available unclaimed work stream from plans/roadmap.md. Follow all phases of the TDD workflow rigorously from start to finish." \
+  "Use the tdd-workflow-engineer agent to implement the next OpenSpec change proposal. Follow these steps:
+
+1. Run 'openspec list' to see available change proposals
+2. Choose the highest priority proposal (C5 first, then D1, D2, D3, D4 in order)
+3. Run 'openspec show <change-id>' to read the full proposal
+4. Read the proposal.md to understand the 'why' and 'what'
+5. Read the specs/<capability>/spec.md to understand requirements and scenarios
+6. Read the tasks.md to get the implementation checklist
+7. Implement the change following TDD workflow rigorously
+8. As you complete tasks, update tasks.md to check off completed items (- [x])
+9. Follow all phases of the TDD workflow from start to finish
+10. Update plans/roadmap.md to mark the work stream as complete when done
+
+Reference: openspec/AGENTS.md for OpenSpec workflow details" \
   2>&1 | tee -a "$LOG_FILE"
 
 TDD_EXIT_CODE=${PIPESTATUS[0]}
@@ -46,7 +72,7 @@ if ! git diff-index --quiet HEAD -- 2>/dev/null; then
   claude \
     --print \
     --dangerously-skip-permissions \
-    "The working tree has uncommitted changes from the autonomous TDD workflow. Please review all changes, create an appropriate commit message following the project's commit message format (see the TDD agent's Phase 7 commit format in frontend/.claude/agents/tdd-workflow-engineer.md), and commit the changes. Use git status, git diff, and examine the modified files to understand what was changed." \
+    "The working tree has uncommitted changes from the autonomous TDD workflow. Please review all changes, including any updated OpenSpec tasks.md files, create an appropriate commit message following the project's commit message format (see the TDD agent's Phase 7 commit format in frontend/.claude/agents/tdd-workflow-engineer.md), and commit the changes. Use git status, git diff, and examine the modified files to understand what was changed." \
     2>&1 | tee -a "$LOG_FILE"
 
   COMMIT_EXIT_CODE=${PIPESTATUS[0]}
@@ -84,7 +110,7 @@ if [ "$ROADMAP_MODIFIED" = false ]; then
   claude \
     --print \
     --dangerously-skip-permissions \
-    "Use the project-manager agent to review the most recent commit and update plans/roadmap.md accordingly. Mark the completed work stream as complete with timestamp, update status indicators, and ensure the roadmap accurately reflects the current project state. After updating the roadmap, commit the changes." \
+    "Use the project-manager agent to review the most recent commit and update plans/roadmap.md accordingly. Check which OpenSpec change proposal was worked on (use 'openspec list' or check git diff for openspec/changes/*/tasks.md), mark the corresponding work stream in the roadmap as complete with timestamp if all tasks are done, update status indicators, and ensure the roadmap accurately reflects the current project state. After updating the roadmap, commit the changes." \
     2>&1 | tee -a "$LOG_FILE"
 
   ROADMAP_UPDATE_EXIT_CODE=${PIPESTATUS[0]}
@@ -93,6 +119,18 @@ if [ "$ROADMAP_MODIFIED" = false ]; then
 else
   echo "Roadmap was already updated. Skipping project-manager phase." | tee -a "$LOG_FILE"
 fi
+
+# Phase 4: Check if proposal should be archived
+echo "" | tee -a "$LOG_FILE"
+echo "Phase 4: Checking if any OpenSpec proposals are complete and ready to archive..." | tee -a "$LOG_FILE"
+echo "" | tee -a "$LOG_FILE"
+
+# List current proposals with task counts
+openspec list 2>&1 | tee -a "$LOG_FILE"
+
+echo "" | tee -a "$LOG_FILE"
+echo "Note: When a proposal shows all tasks complete (e.g., 39/39), use 'openspec archive <change-id>' to move it to archive/" | tee -a "$LOG_FILE"
+echo "Archive command example: openspec archive add-chat-interface-ui --yes" | tee -a "$LOG_FILE"
 
 echo "" | tee -a "$LOG_FILE"
 echo "==================================================================" | tee -a "$LOG_FILE"
@@ -103,6 +141,10 @@ echo "==================================================================" | tee 
 echo "" | tee -a "$LOG_FILE"
 echo "Final Git Status:" | tee -a "$LOG_FILE"
 git status | tee -a "$LOG_FILE"
+
+echo "" | tee -a "$LOG_FILE"
+echo "OpenSpec Status:" | tee -a "$LOG_FILE"
+openspec list 2>&1 | tee -a "$LOG_FILE"
 
 echo "" | tee -a "$LOG_FILE"
 echo "Full execution log saved to: $LOG_FILE"
