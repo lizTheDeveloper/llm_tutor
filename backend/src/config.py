@@ -86,9 +86,29 @@ class Settings(BaseSettings):
     bcrypt_rounds: int = Field(default=12, env="BCRYPT_ROUNDS")
     password_min_length: int = Field(default=12, env="PASSWORD_MIN_LENGTH")
 
-    # Rate Limiting
+    # Rate Limiting - General
     rate_limit_per_minute: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
     rate_limit_burst: int = Field(default=10, env="RATE_LIMIT_BURST")
+
+    # Rate Limiting - Tiered by User Role (SEC-3)
+    # Chat endpoints (per minute)
+    rate_limit_chat_per_minute_student: int = Field(default=10, env="RATE_LIMIT_CHAT_PER_MINUTE_STUDENT")
+    rate_limit_chat_per_minute_admin: int = Field(default=30, env="RATE_LIMIT_CHAT_PER_MINUTE_ADMIN")
+
+    # Exercise generation (per hour) - expensive operation
+    rate_limit_exercise_generation_per_hour: int = Field(default=3, env="RATE_LIMIT_EXERCISE_GENERATION_PER_HOUR")
+    rate_limit_exercise_generation_per_hour_admin: int = Field(default=10, env="RATE_LIMIT_EXERCISE_GENERATION_PER_HOUR_ADMIN")
+
+    # Hint requests (per hour) - moderate cost
+    rate_limit_hint_per_hour: int = Field(default=5, env="RATE_LIMIT_HINT_PER_HOUR")
+    rate_limit_hint_per_hour_admin: int = Field(default=15, env="RATE_LIMIT_HINT_PER_HOUR_ADMIN")
+
+    # Daily cost limits (in USD)
+    daily_cost_limit_student: float = Field(default=1.00, env="DAILY_COST_LIMIT_STUDENT")
+    daily_cost_limit_admin: float = Field(default=10.00, env="DAILY_COST_LIMIT_ADMIN")
+
+    # Cost warning threshold (percentage of daily limit)
+    cost_warning_threshold: float = Field(default=0.8, env="COST_WARNING_THRESHOLD")
 
     @field_validator("secret_key", "jwt_secret_key")
     @classmethod

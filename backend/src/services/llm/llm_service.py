@@ -398,7 +398,7 @@ class LLMService:
         if self.cache and use_cache:
             await self.cache.set(request, response)
 
-        # Log usage
+        # Log usage and track cost
         if user_id:
             self.logger.info(
                 "LLM completion generated",
@@ -410,6 +410,36 @@ class LLMService:
                     "cached": response.cached,
                 },
             )
+
+            # Track cost in CostTracker (SEC-3)
+            # Only track non-cached responses to avoid double-counting
+            if not response.cached and response.cost_usd:
+                try:
+                    from .cost_tracker import CostTracker
+                    from src.utils.redis_client import get_redis
+
+                    redis = get_redis()
+                    cost_tracker = CostTracker(redis.async_client)
+
+                    # Determine operation type based on context
+                    operation_type = "chat"  # Default, can be overridden by caller
+                    if hasattr(request, "operation_type"):
+                        operation_type = request.operation_type
+
+                    await cost_tracker.track_cost(
+                        user_id=int(user_id),
+                        operation_type=operation_type,
+                        cost=response.cost_usd
+                    )
+                except Exception as error:
+                    # Don't fail the request if cost tracking fails
+                    self.logger.warning(
+                        "Failed to track LLM cost",
+                        extra={
+                            "error": str(error),
+                            "user_id": user_id,
+                        }
+                    )
 
         return response
 
