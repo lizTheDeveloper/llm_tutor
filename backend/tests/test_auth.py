@@ -3,6 +3,7 @@ Tests for authentication API endpoints.
 Tests user registration, login, OAuth, token refresh, email verification, and password reset.
 """
 import pytest
+import uuid
 from unittest.mock import patch, AsyncMock, MagicMock, Mock
 from sqlalchemy import select
 from src.models.user import User, UserRole
@@ -191,17 +192,19 @@ async def test_verify_email_success(client, db_session):
         mock_get_session.return_value.__aenter__.return_value = db_session
         mock_get_session.return_value.__aexit__.return_value = None
 
+        # Create unverified user in database
+        from src.services.auth_service import AuthService
+        user_email = f"verify-{uuid.uuid4()}@example.com"
+
         # Setup mock to return email
-        mock_verify.return_value = "verify@example.com"
+        mock_verify.return_value = user_email
 
         # Configure email service mock
         mock_email = AsyncMock()
         mock_email_service.return_value = mock_email
 
-        # Create unverified user in database
-        from src.services.auth_service import AuthService
         user = User(
-            email="verify@example.com",
+            email=user_email,
             password_hash=AuthService.hash_password("P@ssw0rd1234"),
             name="Verify User",
             role=UserRole.STUDENT,
@@ -254,8 +257,9 @@ async def test_password_reset_request(client, db_session):
 
         # Create user
         from src.services.auth_service import AuthService
+        user_email = f"reset-{uuid.uuid4()}@example.com"
         user = User(
-            email="reset@example.com",
+            email=user_email,
             password_hash=AuthService.hash_password("OldP@ssw0rd123"),
             name="Reset User",
             role=UserRole.STUDENT,
@@ -266,7 +270,7 @@ async def test_password_reset_request(client, db_session):
         await db_session.flush()
 
         response = await client.post("/api/auth/password-reset", json={
-            "email": "reset@example.com"
+            "email": user_email
         })
         assert response.status_code == 200
 
@@ -308,14 +312,16 @@ async def test_password_reset_confirm_success(client, db_session):
         mock_get_session.return_value.__aenter__.return_value = db_session
         mock_get_session.return_value.__aexit__.return_value = None
 
-        # Mock valid token
-        mock_verify.return_value = "resetconfirm@example.com"
-
         # Create user
         from src.services.auth_service import AuthService
+        user_email = f"resetconfirm-{uuid.uuid4()}@example.com"
+
+        # Mock valid token
+        mock_verify.return_value = user_email
+
         old_password_hash = AuthService.hash_password("OldP@ssw0rd123")
         user = User(
-            email="resetconfirm@example.com",
+            email=user_email,
             password_hash=old_password_hash,
             name="Reset Confirm User",
             role=UserRole.STUDENT,
@@ -366,7 +372,7 @@ async def test_refresh_token_success(client, db_session):
         # Create user
         from src.services.auth_service import AuthService
         user = User(
-            email="refresh@example.com",
+            email=f"refresh-{uuid.uuid4()}@example.com",
             password_hash=AuthService.hash_password("P@ssw0rd1234"),
             name="Refresh User",
             role=UserRole.STUDENT,

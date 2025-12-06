@@ -3,6 +3,7 @@ Tests for chat/tutor API endpoints.
 Tests conversation management, message sending, and LLM tutor interaction.
 """
 import pytest
+import uuid
 from unittest.mock import patch, AsyncMock, MagicMock
 from sqlalchemy import select
 from src.models.user import User, UserRole, SkillLevel
@@ -18,7 +19,7 @@ async def authenticated_user(db_session):
     Create an authenticated test user with profile data.
     """
     user = User(
-        email="tutor_test@example.com",
+        email=f"tutor-test-{uuid.uuid4()}@example.com",
         password_hash="hashed_password",
         name="Tutor Test User",
         role=UserRole.STUDENT,
@@ -430,7 +431,7 @@ async def test_get_conversation_unauthorized_access(
     """
     # Create another user and their conversation
     other_user = User(
-        email="other@example.com",
+        email=f"other-{uuid.uuid4()}@example.com",
         password_hash="hashed",
         name="Other User",
         role=UserRole.STUDENT,

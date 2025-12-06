@@ -18,6 +18,7 @@ Requirement: REQ-AUTH-001 (email verification)
 """
 
 import pytest
+import uuid
 from datetime import datetime, timedelta
 from sqlalchemy import select
 from src.models.user import User, UserRole
@@ -602,7 +603,7 @@ class TestErrorHandling:
 async def test_user_unverified(db_session):
     """Create a test user with unverified email."""
     user = User(
-        email="unverified@example.com",
+        email=f"unverified-{uuid.uuid4()}@example.com",
         password_hash=AuthService.hash_password("SecurePass123!"),
         name="Unverified User",
         role=UserRole.STUDENT,
@@ -627,7 +628,7 @@ def auth_headers_unverified(test_user_unverified):
 async def test_user_oauth(db_session):
     """Create a test user from OAuth (auto-verified)."""
     user = User(
-        email="oauth@example.com",
+        email=f"oauth-{uuid.uuid4()}@example.com",
         name="OAuth User",
         role=UserRole.STUDENT,
         email_verified=True,  # OAuth users are auto-verified

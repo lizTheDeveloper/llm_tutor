@@ -23,6 +23,7 @@ Requirements Coverage:
 - REQ-EXERCISE-004: Exercise completion metrics tracking
 """
 import pytest
+import uuid
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
@@ -46,7 +47,7 @@ from src.schemas.difficulty import (
 async def test_user(db_session):
     """Create a test user with intermediate skill level."""
     user = User(
-        email="test_difficulty@example.com",
+        email=f"test-difficulty-{uuid.uuid4()}@example.com",
         name="Test User",
         password_hash="hashed_password",
         email_verified=True,
@@ -67,7 +68,7 @@ async def test_user(db_session):
 async def beginner_user(db_session):
     """Create a beginner user for boundary testing."""
     user = User(
-        email="beginner@example.com",
+        email=f"beginner-{uuid.uuid4()}@example.com",
         name="Beginner User",
         password_hash="hashed_password",
         email_verified=True,
@@ -88,7 +89,7 @@ async def beginner_user(db_session):
 async def advanced_user(db_session):
     """Create an advanced user for boundary testing."""
     user = User(
-        email="advanced@example.com",
+        email=f"advanced-{uuid.uuid4()}@example.com",
         name="Advanced User",
         password_hash="hashed_password",
         email_verified=True,
