@@ -195,16 +195,75 @@ gcloud compute ssh codementor-app-vm --zone=us-central1-a \
 
 **Total time**: ~2-3 minutes
 
+## Environment Configuration for Production
+
+### Frontend Environment Variables
+
+**IMPORTANT**: The frontend requires a `.env.production` file for production builds, but this file **MUST NEVER** be committed to git.
+
+#### Setup Instructions:
+
+1. **Create `.env.production` from template**:
+   ```bash
+   cd frontend
+   cp .env.production.example .env.production
+   ```
+
+2. **Configure production values**:
+   ```bash
+   # Edit frontend/.env.production with your actual values
+   nano .env.production
+   ```
+
+   Update these values:
+   - `VITE_API_BASE_URL`: Your production API URL (e.g., `https://api.yourapp.com/api/v1` or `http://YOUR_VM_IP/api/v1`)
+   - `VITE_ENV`: Set to `production`
+
+3. **Verify .gitignore**:
+   The `.gitignore` file already blocks `.env.production` files. Verify with:
+   ```bash
+   git ls-files | grep env.production  # Should only show .env.production.example
+   ```
+
+#### CI/CD Configuration
+
+For automated deployments, inject environment variables at build time:
+
+**GitHub Actions** (add to `.github/workflows/deploy-to-vm.yml`):
+```yaml
+- name: Create production env file
+  run: |
+    echo "VITE_API_BASE_URL=http://${{ secrets.VM_IP }}/api/v1" > frontend/.env.production
+    echo "VITE_ENV=production" >> frontend/.env.production
+```
+
+**Direct VM Deployment**:
+```bash
+# SSH into VM and create .env.production
+gcloud compute ssh codementor-app-vm --zone=us-central1-a
+cd /opt/codementor/frontend
+echo "VITE_API_BASE_URL=http://$(curl -s ifconfig.me)/api/v1" > .env.production
+echo "VITE_ENV=production" >> .env.production
+```
+
+### Backend Environment Variables
+
+Backend secrets are managed via GCP Secret Manager (see `docs/secrets-management-guide.md`). The startup script (`vm-startup.sh`) automatically fetches secrets at boot time.
+
 ## Next Steps
 
+- [ ] **CRITICAL**: Create `frontend/.env.production` with your production API URL
 - [ ] Configure `backend/src/infrastructure/gcp/configs/project.env` with your GCP project
 - [ ] Run infrastructure setup scripts
 - [ ] Create VM with `07-provision-vm.sh`
 - [ ] Test manual deployment with `deploy-to-vm.sh`
 - [ ] Set up GitHub Actions for auto-deploy
+- [ ] Configure frontend `.env.production` in CI/CD or on VM
 - [ ] Add SSL certificate for HTTPS (optional)
 - [ ] Set up monitoring and alerts (optional)
 
 ## Need Help?
 
-See the complete guide: `backend/src/infrastructure/gcp/VM-DEPLOYMENT.md`
+- **Deployment Guide**: `backend/src/infrastructure/gcp/VM-DEPLOYMENT.md`
+- **Secrets Management**: `docs/secrets-management-guide.md`
+- **Environment Setup**: `frontend/.env.production.example`
