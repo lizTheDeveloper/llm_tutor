@@ -1,8 +1,9 @@
 # LLM Coding Tutor Platform - Active Roadmap
 
-## Document Version: 1.19
+## Document Version: 1.20
 ## Date: 2025-12-06
-## Status: Stage 4.5 - COMPLETE (ARCH-REVIEW, SEC-1, SEC-1-FE, DB-OPT all delivered - 2025-12-06)
+## Status: Stage 4.5 - COMPLETE | Stage 4.75 - IN PROGRESS (SEC-2, SEC-2-AUTH complete - 2025-12-06)
+## Latest: Comprehensive Architectural Review completed - See docs/architectural-review-report.md
 
 ---
 
@@ -943,13 +944,23 @@
 
 **Stage 4.5 Status**: ✅ COMPLETE (100% core work - 4/4 delivered)
 
-**Critical Findings from ARCH-REVIEW**:
+**Critical Findings from ARCH-REVIEW (2025-12-06)**:
 - Overall Health Score: 7.2/10
 - Architecture: Grade A (Production Ready)
-- Security: Grade C+ (3 P0 blockers identified)
-- Performance: Grade B+ (Optimized)
-- Testing: Grade C (Below 80% target)
-- Observability: Grade D (Not ready)
+- Code Quality: Grade B+ (Good with gaps)
+- Security: Grade C+ (2 P0 blockers remaining - CRIT-1 unresolved, CRIT-2 ✅ complete)
+- Performance: Grade B+ (Optimized - DB-OPT complete)
+- Scalability: Grade B (Ready for 1,000 users)
+- Testing: Grade C (60-70% coverage, needs E2E tests)
+- Observability: Grade D (No monitoring/alerting - CRITICAL GAP)
+
+**P0 Blockers Remaining** (from architectural review):
+1. ❌ CRIT-1: Secrets Exposed in Git - frontend/.env.production tracked (NOT STARTED)
+2. ✅ CRIT-2: Email Verification Not Enforced (SEC-2-AUTH complete 2025-12-06)
+3. ✅ CRIT-3: Configuration Validation (SEC-2 complete 2025-12-06)
+
+**See Full Report:** docs/architectural-review-report.md (comprehensive findings)
+**Anti-Patterns:** docs/anti-patterns-checklist.md (prevention guide)
 
 **Identified P0 Blockers** (must fix before production):
 1. Secrets exposed in git repository (.env tracked)
@@ -1130,32 +1141,105 @@
 
 ---
 
+#### Work Stream SEC-2-GIT: Remove Secrets from Git (CRIT-1)
+
+**Agent**: Available
+**Dependencies**: None (URGENT - P0 BLOCKER)
+**Status**: NOT STARTED
+**Priority**: P0 - CRITICAL BLOCKER (highest priority remaining)
+**Parallel With**: None - must complete before any deployment
+
+**Critical Issue**: `frontend/.env.production` is tracked in git with hardcoded production IP address
+
+**Tasks:**
+- [ ] IMMEDIATE (Day 1 - 1 hour):
+  - Remove `frontend/.env.production` from git tracking
+  - Add to .gitignore (verify *.env.production pattern)
+  - Git filter-branch to remove from history
+  - Force push to remote (coordinate with team)
+  - Verify file no longer in git: `git ls-files | grep env.production`
+- [ ] SHORT-TERM (Day 1 - 30 minutes):
+  - Create `frontend/.env.production.example` with placeholder values
+  - Document environment-specific configuration in deployment guide
+  - Update CI/CD to inject environment variables at build time
+- [ ] VERIFICATION (Day 1 - 30 minutes):
+  - Scan entire git history for any other tracked secrets
+  - Rotate production API URL/IP if necessary
+  - Update pre-commit hooks to prevent .env.production commits
+  - Document secret rotation procedures
+
+**Deliverable**: frontend/.env.production removed from git completely
+
+**Effort**: XS (2 hours total)
+
+**Done When**:
+- [ ] frontend/.env.production NOT in git tracking
+- [ ] frontend/.env.production NOT in git history
+- [ ] frontend/.env.production.example created with placeholders
+- [ ] .gitignore updated to block *.env.production
+- [ ] Pre-commit hooks prevent future .env.production commits
+- [ ] Deployment documentation updated
+- [ ] No other secrets found in git history
+
+**Security Impact**:
+- Fixes CRIT-1 (P0 blocker): Secrets exposed in git repository
+- Risk: Public IP exposure, potential credential leakage
+- Impact: CRITICAL - Must fix before any public deployment
+
+**Commands to Execute**:
+```bash
+# 1. Remove from tracking
+git rm --cached frontend/.env.production
+
+# 2. Add to .gitignore (already has *.env but verify)
+echo "*.env.production" >> .gitignore
+
+# 3. Remove from history (WARNING: rewrites history)
+git filter-branch --tree-filter 'rm -f frontend/.env.production' HEAD
+git push --force origin main
+
+# 4. Verify removal
+git ls-files | grep env.production  # Should return nothing
+
+# 5. Create example file
+cp frontend/.env.production frontend/.env.production.example
+# Edit to replace actual values with placeholders
+git add frontend/.env.production.example
+git commit -m "Add frontend .env.production example template"
+```
+
+---
+
 #### Work Stream SEC-2-CONFIG: Configuration Hardening
 
 **Agent**: Available
 **Dependencies**: None (parallel)
-**Status**: NOT STARTED
+**Status**: ✅ COMPLETE (delivered in SEC-2 work stream 2025-12-06)
 **Priority**: P0 - CRITICAL BLOCKER
 **Parallel With**: SEC-2, SEC-2-AUTH
 
+**Note**: This work was completed as part of SEC-2 work stream. Configuration validation is now enforced in production via `validate_production_config()` model validator.
+
 **Tasks:**
-- [ ] Add `validate_production_config()` model validator
-- [ ] Require critical environment variables in production
-- [ ] Detect and reject development secrets in production
-- [ ] Validate URL formats (DATABASE_URL, REDIS_URL, frontend/backend URLs)
-- [ ] Validate OAuth configuration if enabled
-- [ ] Tests verify validation logic
+- [x] Add `validate_production_config()` model validator
+- [x] Require critical environment variables in production
+- [x] Detect and reject development secrets in production
+- [x] Validate URL formats (DATABASE_URL, REDIS_URL, frontend/backend URLs)
+- [x] Validate OAuth configuration if enabled
+- [x] Tests verify validation logic (17 tests, 100% passing)
 
-**Deliverable**: Production configuration validation that fails fast on startup
+**Deliverable**: Production configuration validation that fails fast on startup ✅
 
-**Effort**: XS (4 hours)
+**Effort**: XS (4 hours actual)
 
 **Done When**:
-- [ ] Application fails fast on invalid production config
-- [ ] All critical settings validated at startup
-- [ ] Development secrets detected and rejected
-- [ ] Clear error messages guide fixes
-- [ ] Tests verify validation
+- [x] Application fails fast on invalid production config
+- [x] All critical settings validated at startup
+- [x] Development secrets detected and rejected
+- [x] Clear error messages guide fixes
+- [x] Tests verify validation (17 integration tests)
+
+**Implementation**: See SEC-2 work stream above for complete details.
 
 ---
 
@@ -1466,9 +1550,8 @@ All completed work archived in `/Users/annhoward/src/llm_tutor/plans/completed/r
 - requirements.md (v1.2) - Source requirements
 - priorities.md (v1.0) - Feature prioritization
 - completed/roadmap-archive.md - Stages 1, 2, 3 complete
-- docs/architectural-review-report.md (v1.0) - Architectural review findings
-- docs/anti-patterns.md (v2.0) - Anti-patterns catalog
-- docs/critical-issues-for-roadmap.md (v1.0) - Critical issues for Stage 4.75
+- docs/architectural-review-report.md (v1.0 - 2025-12-06) - Comprehensive architectural review
+- docs/anti-patterns-checklist.md (v1.0 - 2025-12-06) - Anti-patterns prevention guide
 
 ---
 
