@@ -1,10 +1,16 @@
 """
 Pydantic schemas for user profile and onboarding.
+
+Enhanced with input validation hardening (SEC-3-INPUT):
+- HTML/XSS sanitization for text fields
+- Comprehensive field length validation
+- Clear validation error messages
 """
 from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 from src.models.user import SkillLevel, UserRole
+from src.utils.sanitization import sanitize_html, sanitize_markdown
 
 
 class OnboardingRequest(BaseModel):
@@ -83,7 +89,14 @@ class OnboardingResponse(BaseModel):
 
 
 class ProfileUpdateRequest(BaseModel):
-    """Schema for user profile update."""
+    """
+    Schema for user profile update.
+
+    Security enhancements (SEC-3-INPUT):
+    - HTML/XSS sanitization for name, bio, career_goals
+    - Markdown sanitization for bio (supports formatted text)
+    - Length validation for all fields
+    """
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     bio: Optional[str] = Field(None, max_length=2000)
     programming_language: Optional[str] = Field(None, min_length=1, max_length=50)
@@ -91,6 +104,31 @@ class ProfileUpdateRequest(BaseModel):
     career_goals: Optional[str] = Field(None, min_length=10, max_length=1000)
     learning_style: Optional[str] = Field(None, min_length=3, max_length=100)
     time_commitment: Optional[str] = Field(None, min_length=3, max_length=100)
+
+    @field_validator('name')
+    @classmethod
+    def validate_name(cls, value: Optional[str]) -> Optional[str]:
+        """Sanitize name field (SEC-3-INPUT)."""
+        if value is None:
+            return None
+        return sanitize_html(value)
+
+    @field_validator('bio')
+    @classmethod
+    def validate_bio(cls, value: Optional[str]) -> Optional[str]:
+        """Sanitize bio field - allows markdown (SEC-3-INPUT)."""
+        if value is None:
+            return None
+        return sanitize_markdown(value, allow_images=False)
+
+    @field_validator('career_goals')
+    @classmethod
+    def validate_career_goals_sanitization(cls, value: Optional[str]) -> Optional[str]:
+        """Sanitize career_goals field (SEC-3-INPUT)."""
+        if value is None:
+            return None
+        # career_goals can have markdown but no images
+        return sanitize_markdown(value, allow_images=False)
 
     @field_validator('programming_language')
     @classmethod

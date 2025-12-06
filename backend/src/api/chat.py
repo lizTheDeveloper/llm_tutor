@@ -16,6 +16,8 @@ from src.models.user_memory import UserMemory
 from src.services.llm.base_provider import Message as LLMMessage
 from src.services.llm.prompt_templates import PromptTemplateManager, PromptType
 from src.utils.database import get_async_db_session as get_session
+from src.schemas.chat import SendMessageRequest
+from pydantic import ValidationError
 
 logger = get_logger(__name__)
 chat_bp = Blueprint("chat", __name__)
@@ -48,13 +50,21 @@ async def send_message() -> Dict[str, Any]:
         # Get current user
         user_id = get_current_user_id()
 
-        # Get request data
+        # Get request data and validate (SEC-3-INPUT)
         data = await request.get_json()
-        if not data or "message" not in data:
-            raise APIError("Message field is required", status_code=400)
 
-        user_message = data.get("message")
-        conversation_id = data.get("conversation_id")
+        try:
+            validated_data = SendMessageRequest(**data)
+        except ValidationError as validation_error:
+            errors = validation_error.errors()
+            error_messages = [f"{err['loc'][0]}: {err['msg']}" for err in errors]
+            raise APIError(
+                f"Validation error: {'; '.join(error_messages)}",
+                status_code=400,
+            )
+
+        user_message = validated_data.message  # Already sanitized by schema
+        conversation_id = validated_data.conversation_id
 
         async with get_session() as session:
             # Load user profile

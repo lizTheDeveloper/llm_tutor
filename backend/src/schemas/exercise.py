@@ -7,6 +7,11 @@ These schemas define the shape of data for:
 - Hint requests
 - Exercise responses
 - User exercise progress
+
+Enhanced with input validation hardening (SEC-3-INPUT):
+- Length limits on all text fields (prevent DoS)
+- Code size limits (50KB for solutions, 10KB for hints)
+- Clear validation error messages
 """
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -33,9 +38,25 @@ class ExerciseGenerateRequest(BaseModel):
 
 
 class ExerciseSubmissionRequest(BaseModel):
-    """Request schema for submitting an exercise solution."""
-    solution: str = Field(..., min_length=1, description="User's code solution")
-    time_spent_seconds: Optional[int] = Field(None, ge=0, description="Time spent on exercise in seconds")
+    """
+    Request schema for submitting an exercise solution.
+
+    Security enhancements (SEC-3-INPUT):
+    - Max 50KB code size (prevent DoS)
+    - Validation for non-empty submissions
+    """
+    solution: str = Field(
+        ...,
+        min_length=1,
+        max_length=50000,  # 50KB max (SEC-3-INPUT)
+        description="User's code solution (max 50KB)"
+    )
+    time_spent_seconds: Optional[int] = Field(
+        None,
+        ge=0,
+        le=86400,  # Max 24 hours (SEC-3-INPUT)
+        description="Time spent on exercise in seconds"
+    )
 
     @validator('solution')
     def validate_solution_not_empty(cls, value):
@@ -46,9 +67,23 @@ class ExerciseSubmissionRequest(BaseModel):
 
 
 class HintRequest(BaseModel):
-    """Request schema for requesting a hint."""
-    context: Optional[str] = Field(None, description="Additional context about where user is stuck")
-    current_code: Optional[str] = Field(None, description="User's current code attempt")
+    """
+    Request schema for requesting a hint.
+
+    Security enhancements (SEC-3-INPUT):
+    - Max 2KB context (prevent DoS)
+    - Max 10KB code (prevent DoS)
+    """
+    context: Optional[str] = Field(
+        None,
+        max_length=2000,  # 2KB max (SEC-3-INPUT)
+        description="Additional context about where user is stuck (max 2KB)"
+    )
+    current_code: Optional[str] = Field(
+        None,
+        max_length=10000,  # 10KB max (SEC-3-INPUT)
+        description="User's current code attempt (max 10KB)"
+    )
 
 
 class ExerciseListRequest(BaseModel):

@@ -17,6 +17,14 @@ from src.services.oauth_service import OAuthService
 from src.models.user import User, UserRole
 from src.utils.database import get_async_db_session as get_session
 from src.config import settings
+from src.schemas.auth import (
+    RegisterRequest,
+    LoginRequest,
+    PasswordResetRequestSchema,
+    PasswordResetConfirmSchema,
+    EmailVerificationResendSchema,
+)
+from pydantic import ValidationError
 
 logger = get_logger(__name__)
 auth_bp = Blueprint("auth", __name__)
@@ -112,22 +120,22 @@ async def register() -> Dict[str, Any]:
     """
     data = await request.get_json()
 
-    # Validate required fields
-    email = data.get("email", "").strip().lower()
-    password = data.get("password", "")
-    name = data.get("name", "").strip()
-
-    if not email or not password or not name:
+    # Validate using Pydantic schema (SEC-3-INPUT)
+    try:
+        validated_data = RegisterRequest(**data)
+    except ValidationError as validation_error:
+        # Extract clear error message
+        errors = validation_error.errors()
+        error_messages = [f"{err['loc'][0]}: {err['msg']}" for err in errors]
         raise APIError(
-            "Email, password, and name are required",
+            f"Validation error: {'; '.join(error_messages)}",
             status_code=400,
         )
 
-    # Validate email format
-    AuthService.validate_email(email)
-
-    # Validate password requirements
-    AuthService.validate_password(password)
+    # Extract validated fields
+    email = validated_data.email.lower()
+    password = validated_data.password
+    name = validated_data.name
 
     # Hash password
     password_hash = AuthService.hash_password(password)
@@ -221,11 +229,19 @@ async def login() -> Dict[str, Any]:
     """
     data = await request.get_json()
 
-    email = data.get("email", "").strip().lower()
-    password = data.get("password", "")
+    # Validate using Pydantic schema (SEC-3-INPUT)
+    try:
+        validated_data = LoginRequest(**data)
+    except ValidationError as validation_error:
+        errors = validation_error.errors()
+        error_messages = [f"{err['loc'][0]}: {err['msg']}" for err in errors]
+        raise APIError(
+            f"Validation error: {'; '.join(error_messages)}",
+            status_code=400,
+        )
 
-    if not email or not password:
-        raise APIError("Email and password are required", status_code=400)
+    email = validated_data.email.lower()
+    password = validated_data.password
 
     # Get user from database
     async with get_session() as session:
@@ -729,12 +745,19 @@ async def request_password_reset() -> Dict[str, Any]:
         JSON response confirming email sent
     """
     data = await request.get_json()
-    email = data.get("email", "").strip().lower()
 
-    if not email:
-        raise APIError("Email is required", status_code=400)
+    # Validate using Pydantic schema (SEC-3-INPUT)
+    try:
+        validated_data = PasswordResetRequestSchema(**data)
+    except ValidationError as validation_error:
+        errors = validation_error.errors()
+        error_messages = [f"{err['loc'][0]}: {err['msg']}" for err in errors]
+        raise APIError(
+            f"Validation error: {'; '.join(error_messages)}",
+            status_code=400,
+        )
 
-    AuthService.validate_email(email)
+    email = validated_data.email.lower()
 
     # Check if user exists
     async with get_session() as session:
@@ -787,12 +810,19 @@ async def resend_verification_email() -> Dict[str, Any]:
     Always returns success to prevent email enumeration attacks.
     """
     data = await request.get_json()
-    email = data.get("email", "").strip().lower()
 
-    if not email:
-        raise APIError("Email is required", status_code=400)
+    # Validate using Pydantic schema (SEC-3-INPUT)
+    try:
+        validated_data = EmailVerificationResendSchema(**data)
+    except ValidationError as validation_error:
+        errors = validation_error.errors()
+        error_messages = [f"{err['loc'][0]}: {err['msg']}" for err in errors]
+        raise APIError(
+            f"Validation error: {'; '.join(error_messages)}",
+            status_code=400,
+        )
 
-    AuthService.validate_email(email)
+    email = validated_data.email.lower()
 
     # Check if user exists
     async with get_session() as session:
@@ -859,11 +889,20 @@ async def confirm_password_reset() -> Dict[str, Any]:
         JSON response confirming password reset
     """
     data = await request.get_json()
-    token = data.get("token")
-    new_password = data.get("new_password")
 
-    if not token or not new_password:
-        raise APIError("Token and new password are required", status_code=400)
+    # Validate using Pydantic schema (SEC-3-INPUT)
+    try:
+        validated_data = PasswordResetConfirmSchema(**data)
+    except ValidationError as validation_error:
+        errors = validation_error.errors()
+        error_messages = [f"{err['loc'][0]}: {err['msg']}" for err in errors]
+        raise APIError(
+            f"Validation error: {'; '.join(error_messages)}",
+            status_code=400,
+        )
+
+    token = validated_data.token
+    new_password = validated_data.new_password
 
     # Verify token and get email
     email = await AuthService.verify_password_reset_token(token)
@@ -871,10 +910,7 @@ async def confirm_password_reset() -> Dict[str, Any]:
     if not email:
         raise APIError("Invalid or expired reset token", status_code=400)
 
-    # Validate new password
-    AuthService.validate_password(new_password)
-
-    # Hash new password
+    # Hash new password (already validated by Pydantic schema)
     new_password_hash = AuthService.hash_password(new_password)
 
     # Update user password
