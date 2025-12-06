@@ -19,7 +19,7 @@ import json
 from typing import Optional, Dict, Any, List
 from datetime import timedelta
 
-from src.utils.redis_client import get_redis_client
+from src.utils.redis_client import get_redis
 from src.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -40,7 +40,7 @@ class CacheService:
 
     def __init__(self):
         """Initialize cache service with Redis client."""
-        self.redis_client = get_redis_client()
+        self.redis_client = get_redis()
 
     # =========================================================================
     # USER PROFILE CACHING

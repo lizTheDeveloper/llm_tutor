@@ -20,7 +20,7 @@ import json
 from src.models.user import User
 from src.models.conversation import Conversation, Message, MessageRole
 from src.models.exercise import Exercise, UserExercise, ExerciseType, ExerciseDifficulty, ExerciseStatus
-from src.utils.redis_client import get_redis_client
+from src.utils.redis_client import get_redis
 from src.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -401,7 +401,7 @@ async def test_user_profile_caching(
     Expected cache key: user:profile:{user_id}
     Expected TTL: 300 seconds (5 minutes)
     """
-    redis_client = get_redis_client()
+    redis_client = get_redis()
     cache_key = f"user:profile:{test_user.id}"
 
     # Initially, cache should be empty
@@ -462,7 +462,7 @@ async def test_exercise_caching_by_id(
     exercises, _ = exercises_with_history
     exercise = exercises[0]
 
-    redis_client = get_redis_client()
+    redis_client = get_redis()
     cache_key = f"exercise:{exercise.id}"
 
     # Initially, cache should be empty
@@ -511,7 +511,7 @@ async def test_cache_invalidation_on_profile_update(
 
     CRITICAL: Stale cache data can cause incorrect personalization.
     """
-    redis_client = get_redis_client()
+    redis_client = get_redis()
     cache_key = f"user:profile:{test_user.id}"
 
     # Cache user profile

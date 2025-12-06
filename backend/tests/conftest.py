@@ -2,6 +2,18 @@
 Pytest configuration and shared fixtures for backend tests.
 Provides database setup/teardown and test client.
 """
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load test environment variables BEFORE any other imports
+test_env_path = Path(__file__).parent.parent / ".env.test"
+if test_env_path.exists():
+    load_dotenv(test_env_path, override=True)
+    print(f"[TEST CONFIG] Loaded test environment from {test_env_path}")
+else:
+    print(f"[TEST CONFIG] WARNING: .env.test not found at {test_env_path}")
+
 import pytest
 import asyncio
 from typing import AsyncGenerator
