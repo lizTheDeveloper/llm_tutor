@@ -267,3 +267,38 @@ def mock_jwt_auth_factory(app):
                 yield
 
     return _mock_auth
+
+
+@pytest.fixture
+async def test_user(db_session):
+    """
+    Create a test user for tests that need authentication.
+    Uses UUID to ensure unique email per test, avoiding IntegrityError.
+    """
+    import uuid
+    from src.models.user import User, UserRole
+    unique_id = str(uuid.uuid4())[:8]  # Short unique ID
+    user = User(
+        email=f"testuser-{unique_id}@example.com",
+        password_hash="hashed_password",
+        name="Test User",
+        email_verified=True,
+        role=UserRole.STUDENT,
+        onboarding_completed=True,
+        programming_language="Python"
+    )
+    db_session.add(user)
+    await db_session.flush()
+    return user
+
+
+@pytest.fixture
+async def auth_headers(test_user, db_session):
+    """
+    Create authentication headers for a test user.
+    Returns headers dict with Bearer token for authenticated requests.
+    """
+    from src.services.auth_service import AuthService
+    auth_service = AuthService(db_session)
+    tokens = await auth_service.create_access_token(test_user.id)
+    return {"Authorization": f"Bearer {tokens['access_token']}"}
