@@ -10,6 +10,7 @@ from src.logging_config import get_logger
 from src.middleware.error_handler import APIError
 from src.middleware.auth_middleware import require_auth, require_verified_email, get_current_user_id
 from src.middleware.rate_limiter import llm_rate_limit
+from src.middleware.csrf_protection import csrf_protect
 from src.models.conversation import Conversation, Message, MessageRole
 from src.models.user import User
 from src.models.user_memory import UserMemory
@@ -30,6 +31,7 @@ llm_manager = None
 @require_auth
 @require_verified_email
 @llm_rate_limit("chat")
+@csrf_protect
 async def send_message() -> Dict[str, Any]:
     """
     Send a message to the LLM tutor.
@@ -396,6 +398,7 @@ async def get_conversation(conversation_id: int) -> Dict[str, Any]:
 @chat_bp.route("/conversations/<int:conversation_id>", methods=["DELETE"])
 @require_auth
 @require_verified_email
+@csrf_protect
 async def delete_conversation(conversation_id: int) -> Dict[str, Any]:
     """
     Delete a conversation.
@@ -457,6 +460,7 @@ async def delete_conversation(conversation_id: int) -> Dict[str, Any]:
 @chat_bp.route("/stream", methods=["POST"])
 @require_auth
 @require_verified_email
+@csrf_protect
 @llm_rate_limit("chat")
 async def stream_message() -> Any:
     """

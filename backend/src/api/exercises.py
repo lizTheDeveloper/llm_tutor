@@ -8,6 +8,7 @@ from src.logging_config import get_logger
 from src.middleware.error_handler import APIError
 from src.middleware.auth_middleware import require_auth, require_verified_email, get_current_user_id
 from src.middleware.rate_limiter import llm_rate_limit
+from src.middleware.csrf_protection import csrf_protect
 from src.services.exercise_service import ExerciseService
 from src.services.difficulty_service import DifficultyService
 from src.schemas.exercise import (
@@ -121,6 +122,7 @@ async def get_exercise(exercise_id: int) -> Dict[str, Any]:
 @exercises_bp.route("/<int:exercise_id>/submit", methods=["POST"])
 @require_auth
 @require_verified_email
+@csrf_protect
 async def submit_exercise(exercise_id: int) -> Dict[str, Any]:
     """
     Submit solution for an exercise.
@@ -176,6 +178,7 @@ async def submit_exercise(exercise_id: int) -> Dict[str, Any]:
 @exercises_bp.route("/<int:exercise_id>/hint", methods=["POST"])
 @require_auth
 @require_verified_email
+@csrf_protect
 @llm_rate_limit("hint")
 async def request_hint(exercise_id: int) -> Dict[str, Any]:
     """
@@ -229,6 +232,7 @@ async def request_hint(exercise_id: int) -> Dict[str, Any]:
 @exercises_bp.route("/<int:exercise_id>/complete", methods=["POST"])
 @require_auth
 @require_verified_email
+@csrf_protect
 async def mark_complete(exercise_id: int) -> Dict[str, Any]:
     """
     Mark exercise as complete.
@@ -268,6 +272,7 @@ async def mark_complete(exercise_id: int) -> Dict[str, Any]:
 @exercises_bp.route("/<int:exercise_id>/skip", methods=["POST"])
 @require_auth
 @require_verified_email
+@csrf_protect
 async def skip_exercise(exercise_id: int) -> Dict[str, Any]:
     """
     Skip current exercise.
@@ -366,6 +371,7 @@ async def get_exercise_history() -> Dict[str, Any]:
 @exercises_bp.route("/generate", methods=["POST"])
 @require_auth
 @require_verified_email
+@csrf_protect
 @llm_rate_limit("exercise_generation")
 async def generate_exercise() -> Dict[str, Any]:
     """
@@ -509,6 +515,7 @@ async def analyze_difficulty() -> Dict[str, Any]:
 
 @exercises_bp.route("/difficulty/adjust", methods=["POST"])
 @require_auth
+@csrf_protect
 async def adjust_difficulty() -> Dict[str, Any]:
     """
     Apply a difficulty adjustment (manual or automatic).

@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from src.logging_config import get_logger
 from src.middleware.error_handler import APIError
 from src.middleware.auth_middleware import require_auth, require_verified_email, get_current_user_id
+from src.middleware.csrf_protection import csrf_protect
 from src.services.profile_service import ProfileService
 from src.schemas.profile import (
     OnboardingRequest,
@@ -55,6 +56,7 @@ async def get_current_user() -> Dict[str, Any]:
 @users_bp.route("/me", methods=["PUT"])
 @require_auth
 @require_verified_email
+@csrf_protect
 async def update_current_user() -> Dict[str, Any]:
     """
     Update current user's profile.
@@ -213,6 +215,7 @@ async def get_onboarding_status() -> Dict[str, Any]:
 @users_bp.route("/onboarding", methods=["POST"])
 @require_auth
 @require_verified_email
+@csrf_protect
 async def complete_onboarding() -> Dict[str, Any]:
     """
     Complete user onboarding interview.
@@ -317,6 +320,7 @@ async def get_user_preferences() -> Dict[str, Any]:
 @users_bp.route("/me/preferences", methods=["PUT"])
 @require_auth
 @require_verified_email
+@csrf_protect
 async def update_user_preferences() -> Dict[str, Any]:
     """
     Update user preferences and settings.

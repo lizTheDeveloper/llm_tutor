@@ -11,6 +11,7 @@ from src.logging_config import get_logger
 from src.middleware.error_handler import APIError
 from src.middleware.auth_middleware import require_auth, get_current_user_id
 from src.middleware.rate_limiter import rate_limit
+from src.middleware.csrf_protection import inject_csrf_token_on_login, clear_csrf_token_on_logout
 from src.services.auth_service import AuthService
 from src.services.email_service import get_email_service
 from src.services.oauth_service import OAuthService
@@ -304,6 +305,12 @@ async def login() -> Dict[str, Any]:
         response = await make_response(jsonify(response_data), 200)
         set_auth_cookies(response, tokens["access_token"], tokens["refresh_token"])
 
+        # SEC-3-CSRF: Generate and set CSRF token on login
+        response = await inject_csrf_token_on_login(
+            response,
+            is_production=(settings.app_env == "production")
+        )
+
         return response
 
 
@@ -337,6 +344,12 @@ async def logout() -> Dict[str, Any]:
     # Create response and clear auth cookies
     response = await make_response(jsonify({"message": "Logout successful"}), 200)
     clear_auth_cookies(response)
+
+    # SEC-3-CSRF: Clear CSRF token on logout
+    response = await clear_csrf_token_on_logout(
+        response,
+        is_production=(settings.app_env == "production")
+    )
 
     return response
 
@@ -535,6 +548,12 @@ async def oauth_exchange_code() -> Dict[str, Any]:
         # Create response and set httpOnly cookies
         response = await make_response(jsonify(response_data), 200)
         set_auth_cookies(response, tokens["access_token"], tokens["refresh_token"])
+
+        # SEC-3-CSRF: Generate and set CSRF token on OAuth login
+        response = await inject_csrf_token_on_login(
+            response,
+            is_production=(settings.app_env == "production")
+        )
 
         return response
 
@@ -875,6 +894,7 @@ async def resend_verification_email() -> Dict[str, Any]:
 
 @auth_bp.route("/password-reset/confirm", methods=["POST"])
 @rate_limit(requests_per_minute=3, requests_per_hour=10)
+@csrf_protect
 async def confirm_password_reset() -> Dict[str, Any]:
     """
     Reset password with token.
