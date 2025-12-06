@@ -768,6 +768,81 @@ async def request_password_reset() -> Dict[str, Any]:
         }), 200
 
 
+@auth_bp.route("/resend-verification", methods=["POST"])
+@rate_limit(requests_per_minute=3, requests_per_hour=15)
+async def resend_verification_email() -> Dict[str, Any]:
+    """
+    Resend email verification email.
+
+    Request Body:
+        {
+            "email": "user@example.com"
+        }
+
+    Returns:
+        JSON response confirming email sent
+
+    Security Note:
+    Part of SEC-2-AUTH: Email Verification Enforcement.
+    Always returns success to prevent email enumeration attacks.
+    """
+    data = await request.get_json()
+    email = data.get("email", "").strip().lower()
+
+    if not email:
+        raise APIError("Email is required", status_code=400)
+
+    AuthService.validate_email(email)
+
+    # Check if user exists
+    async with get_session() as session:
+        result = await session.execute(
+            select(User).where(User.email == email)
+        )
+        user = result.scalar_one_or_none()
+
+        # Always return success to prevent email enumeration
+        # Don't reveal whether user exists or if email is already verified
+        if not user:
+            logger.info(
+                "Resend verification requested for non-existent email",
+                extra={"email": email}
+            )
+            return jsonify({
+                "message": "If an account with that email exists and is unverified, a verification email has been sent."
+            }), 200
+
+        # Check if already verified
+        if user.email_verified:
+            logger.info(
+                "Resend verification requested for already verified email",
+                extra={"user_id": user.id, "email": email}
+            )
+            # Still return success, but don't send email
+            return jsonify({
+                "message": "If an account with that email exists and is unverified, a verification email has been sent."
+            }), 200
+
+        # Generate new verification token
+        verification_token = AuthService.generate_verification_token()
+
+        # Store token in Redis (24 hours expiration)
+        await AuthService.store_verification_token(email, verification_token)
+
+        # Send verification email
+        email_service = get_email_service()
+        await email_service.send_verification_email(email, verification_token)
+
+        logger.info(
+            "Verification email resent",
+            extra={"user_id": user.id, "email": email}
+        )
+
+        return jsonify({
+            "message": "If an account with that email exists and is unverified, a verification email has been sent."
+        }), 200
+
+
 @auth_bp.route("/password-reset/confirm", methods=["POST"])
 @rate_limit(requests_per_minute=3, requests_per_hour=10)
 async def confirm_password_reset() -> Dict[str, Any]:

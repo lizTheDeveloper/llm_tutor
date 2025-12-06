@@ -8,7 +8,7 @@ from sqlalchemy import select, desc
 from datetime import datetime
 from src.logging_config import get_logger
 from src.middleware.error_handler import APIError
-from src.middleware.auth_middleware import require_auth, get_current_user_id
+from src.middleware.auth_middleware import require_auth, require_verified_email, get_current_user_id
 from src.models.conversation import Conversation, Message, MessageRole
 from src.models.user import User
 from src.models.user_memory import UserMemory
@@ -25,6 +25,7 @@ llm_manager = None
 
 @chat_bp.route("/message", methods=["POST"])
 @require_auth
+@require_verified_email
 async def send_message() -> Dict[str, Any]:
     """
     Send a message to the LLM tutor.
@@ -209,6 +210,7 @@ async def send_message() -> Dict[str, Any]:
 
 @chat_bp.route("/conversations", methods=["GET"])
 @require_auth
+@require_verified_email
 async def get_conversations() -> Dict[str, Any]:
     """
     Get list of user's conversations.
@@ -294,6 +296,7 @@ async def get_conversations() -> Dict[str, Any]:
 
 @chat_bp.route("/conversations/<int:conversation_id>", methods=["GET"])
 @require_auth
+@require_verified_email
 async def get_conversation(conversation_id: int) -> Dict[str, Any]:
     """
     Get specific conversation history.
@@ -380,6 +383,7 @@ async def get_conversation(conversation_id: int) -> Dict[str, Any]:
 
 @chat_bp.route("/conversations/<int:conversation_id>", methods=["DELETE"])
 @require_auth
+@require_verified_email
 async def delete_conversation(conversation_id: int) -> Dict[str, Any]:
     """
     Delete a conversation.

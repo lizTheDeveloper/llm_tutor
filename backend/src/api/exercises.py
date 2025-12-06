@@ -6,7 +6,7 @@ from quart import Blueprint, request, jsonify
 from typing import Dict, Any
 from src.logging_config import get_logger
 from src.middleware.error_handler import APIError
-from src.middleware.auth_middleware import require_auth, get_current_user_id
+from src.middleware.auth_middleware import require_auth, require_verified_email, get_current_user_id
 from src.services.exercise_service import ExerciseService
 from src.services.difficulty_service import DifficultyService
 from src.schemas.exercise import (
@@ -26,6 +26,7 @@ exercises_bp = Blueprint("exercises", __name__)
 
 @exercises_bp.route("/daily", methods=["GET"])
 @require_auth
+@require_verified_email
 async def get_daily_exercise() -> Dict[str, Any]:
     """
     Get current day's exercise for authenticated user.
@@ -73,6 +74,7 @@ async def get_daily_exercise() -> Dict[str, Any]:
 
 @exercises_bp.route("/<int:exercise_id>", methods=["GET"])
 @require_auth
+@require_verified_email
 async def get_exercise(exercise_id: int) -> Dict[str, Any]:
     """
     Get specific exercise by ID.
@@ -117,6 +119,7 @@ async def get_exercise(exercise_id: int) -> Dict[str, Any]:
 
 @exercises_bp.route("/<int:exercise_id>/submit", methods=["POST"])
 @require_auth
+@require_verified_email
 async def submit_exercise(exercise_id: int) -> Dict[str, Any]:
     """
     Submit solution for an exercise.
@@ -171,6 +174,7 @@ async def submit_exercise(exercise_id: int) -> Dict[str, Any]:
 
 @exercises_bp.route("/<int:exercise_id>/hint", methods=["POST"])
 @require_auth
+@require_verified_email
 async def request_hint(exercise_id: int) -> Dict[str, Any]:
     """
     Request a hint for an exercise.
@@ -222,6 +226,7 @@ async def request_hint(exercise_id: int) -> Dict[str, Any]:
 
 @exercises_bp.route("/<int:exercise_id>/complete", methods=["POST"])
 @require_auth
+@require_verified_email
 async def mark_complete(exercise_id: int) -> Dict[str, Any]:
     """
     Mark exercise as complete.
@@ -260,6 +265,7 @@ async def mark_complete(exercise_id: int) -> Dict[str, Any]:
 
 @exercises_bp.route("/<int:exercise_id>/skip", methods=["POST"])
 @require_auth
+@require_verified_email
 async def skip_exercise(exercise_id: int) -> Dict[str, Any]:
     """
     Skip current exercise.
@@ -310,6 +316,7 @@ async def skip_exercise(exercise_id: int) -> Dict[str, Any]:
 
 @exercises_bp.route("/history", methods=["GET"])
 @require_auth
+@require_verified_email
 async def get_exercise_history() -> Dict[str, Any]:
     """
     Get user's exercise history.
@@ -356,6 +363,7 @@ async def get_exercise_history() -> Dict[str, Any]:
 
 @exercises_bp.route("/generate", methods=["POST"])
 @require_auth
+@require_verified_email
 async def generate_exercise() -> Dict[str, Any]:
     """
     Generate a new personalized exercise.

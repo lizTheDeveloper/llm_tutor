@@ -232,23 +232,55 @@ def require_verified_email(function: Callable) -> Callable:
 
     Raises:
         APIError: If user's email is not verified
+
+    Security Note:
+    This addresses CRIT-2: Email verification not enforced (P0 blocker).
+    All core platform features require verified email to prevent abuse.
     """
 
     @wraps(function)
     async def wrapper(*args, **kwargs):
+        from src.models.user import User
+        from src.utils.database import get_async_db_session as get_session
+        from sqlalchemy import select
+
         # Check if user is authenticated
         if not hasattr(g, "user_id"):
             logger.error("require_verified_email used without require_auth")
             raise APIError("Authentication required", status_code=401)
 
-        # In a full implementation, we would fetch user from database to check
-        # email_verified status. For now, we'll document this requirement.
-        # The actual check should be implemented when integrating with database queries.
+        # Fetch user from database to check email_verified status
+        async with get_session() as session:
+            result = await session.execute(
+                select(User).where(User.id == g.user_id)
+            )
+            user = result.scalar_one_or_none()
 
-        logger.debug(
-            "Email verification check (placeholder)",
-            extra={"user_id": g.user_id},
-        )
+            if not user:
+                logger.error(
+                    "User not found in database during email verification check",
+                    extra={"user_id": g.user_id}
+                )
+                raise APIError("User not found", status_code=404)
+
+            if not user.email_verified:
+                logger.warning(
+                    "Access denied: email not verified",
+                    extra={
+                        "user_id": g.user_id,
+                        "email": user.email,
+                        "path": request.path
+                    }
+                )
+                raise APIError(
+                    "Email verification required. Please verify your email address to access this feature.",
+                    status_code=403
+                )
+
+            logger.debug(
+                "Email verification check passed",
+                extra={"user_id": g.user_id, "path": request.path}
+            )
 
         # Call the wrapped function
         return await function(*args, **kwargs)
