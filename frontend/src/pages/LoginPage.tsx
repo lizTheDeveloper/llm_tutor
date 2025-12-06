@@ -102,16 +102,12 @@ function LoginPage() {
         password: formData.password,
       });
 
-      // Save tokens
-      authService.saveTokens({
-        access_token: response.access_token,
-        refresh_token: response.refresh_token,
-      });
+      // Backend sets httpOnly cookies automatically
+      // No manual token storage needed
 
-      // Update Redux store
+      // Update Redux store with user data only
       dispatch(setCredentials({
         user: response.user,
-        token: response.access_token
       }));
 
       navigate('/dashboard');

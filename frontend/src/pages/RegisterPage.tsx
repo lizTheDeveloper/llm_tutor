@@ -127,8 +127,12 @@ function RegisterPage() {
         password: formData.password,
       });
 
-      dispatch(setCredentials({ user: response.user, token: response.token }));
-      localStorage.setItem('authToken', response.token);
+      // Backend sets httpOnly cookies automatically
+      // No manual token storage needed
+
+      // Update Redux store with user data only
+      dispatch(setCredentials({ user: response.user }));
+
       navigate('/dashboard');
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Registration failed. Please try again.';

@@ -32,16 +32,13 @@ function OAuthCallbackPage() {
           return;
         }
 
-        // Exchange code for tokens
+        // Exchange code for session (backend sets httpOnly cookies)
         const authResponse = await authService.exchangeOAuthCode(code, provider);
 
-        // Save tokens
-        authService.saveTokens({
-          access_token: authResponse.access_token,
-          refresh_token: authResponse.refresh_token,
-        });
+        // Backend sets httpOnly cookies automatically
+        // No manual token storage needed
 
-        // Update Redux store with user data
+        // Update Redux store with user data only
         dispatch(
           setUser({
             id: authResponse.user.id,

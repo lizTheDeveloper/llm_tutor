@@ -11,20 +11,10 @@
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-// API client helper - returns auth headers
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('access_token');
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  };
-};
+// Cookie-based auth: apiClient handles authentication automatically
+// Cookies are sent with withCredentials: true, no manual header injection needed
+import apiClient from '../../services/api';
 
 // ===================================================================
 // TYPE DEFINITIONS
@@ -111,7 +101,7 @@ export const fetchDailyExercise = createAsyncThunk(
   'exercise/fetchDailyExercise',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/exercises/daily`, getAuthHeaders());
+      const response = await apiClient.get('/exercises/daily');
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message);
@@ -126,7 +116,7 @@ export const fetchExercise = createAsyncThunk(
   'exercise/fetchExercise',
   async (exerciseId: number, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/exercises/${exerciseId}`, getAuthHeaders());
+      const response = await apiClient.get(`/exercises/${exerciseId}`);
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || error.message);
@@ -150,9 +140,9 @@ export const fetchExerciseHistory = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/exercises/history`,
-        { ...getAuthHeaders(), params }
+      const response = await apiClient.get(
+        '/exercises/history',
+        { params }
       );
       return response.data;
     } catch (error: any) {
@@ -175,13 +165,12 @@ export const submitExercise = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/exercises/${payload.exerciseId}/submit`,
+      const response = await apiClient.post(
+        `/exercises/${payload.exerciseId}/submit`,
         {
           solution: payload.solution,
           time_spent_seconds: payload.timeSpentSeconds,
-        },
-        getAuthHeaders()
+        }
       );
 
       // Clear draft solution after successful submission
@@ -208,13 +197,12 @@ export const requestHint = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/exercises/${payload.exerciseId}/hint`,
+      const response = await apiClient.post(
+        `/exercises/${payload.exerciseId}/hint`,
         {
           context: payload.context,
           current_code: payload.currentCode,
-        },
-        getAuthHeaders()
+        }
       );
       return response.data;
     } catch (error: any) {
@@ -230,10 +218,8 @@ export const skipExercise = createAsyncThunk(
   'exercise/skipExercise',
   async (exerciseId: number, { rejectWithValue }) => {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/exercises/${exerciseId}/skip`,
-        {},
-        getAuthHeaders()
+      const response = await apiClient.post(
+        `/exercises/${exerciseId}/skip`
       );
 
       // Clear draft solution when skipping
@@ -260,10 +246,9 @@ export const generateExercise = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/exercises/generate`,
-        params,
-        getAuthHeaders()
+      const response = await apiClient.post(
+        '/exercises/generate',
+        params
       );
       return response.data;
     } catch (error: any) {
