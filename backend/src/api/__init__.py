@@ -12,6 +12,7 @@ from src.api.users import users_bp
 from src.api.exercises import exercises_bp
 from src.api.chat import chat_bp
 from src.api.github import github_bp
+from src.api.progress import progress_bp
 
 logger = get_logger(__name__)
 
@@ -33,8 +34,9 @@ def register_blueprints(app: Quart) -> None:
     app.register_blueprint(exercises_bp, url_prefix=f"{api_prefix}/exercises")
     app.register_blueprint(chat_bp, url_prefix=f"{api_prefix}/chat")
     app.register_blueprint(github_bp, url_prefix=f"{api_prefix}/github")
+    app.register_blueprint(progress_bp, url_prefix=f"{api_prefix}/progress")
 
     logger.info(
         "API blueprints registered",
-        blueprints=["health", "auth", "users", "exercises", "chat", "github"]
+        blueprints=["health", "auth", "users", "exercises", "chat", "github", "progress"]
     )

@@ -12,6 +12,8 @@ from sqlalchemy import (
     Enum as SQLEnum,
     Boolean,
     UniqueConstraint,
+    Float,
+    Index,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -200,3 +202,180 @@ class UserAchievement(Base):
     def __repr__(self) -> str:
         """String representation of UserAchievement."""
         return f"<UserAchievement(user_id={self.user_id}, achievement_id={self.achievement_id}, earned={self.earned})>"
+
+
+class ProgressSnapshot(Base):
+    """
+    Daily snapshot of user progress for historical tracking and visualization.
+    One record per user per day.
+    """
+    __tablename__ = "progress_snapshots"
+    __table_args__ = (
+        UniqueConstraint('user_id', 'snapshot_date', name='unique_user_daily_snapshot'),
+        Index('idx_progress_snapshots_user_date', 'user_id', 'snapshot_date'),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # Foreign key
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    # Snapshot metadata
+    snapshot_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
+        comment="Date of this snapshot (typically end of day UTC)"
+    )
+
+    # Exercise metrics
+    exercises_completed_total: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Total exercises completed up to this date"
+    )
+    exercises_completed_today: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Exercises completed on this specific day"
+    )
+
+    # Streak tracking
+    current_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    longest_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Performance metrics
+    total_time_spent_seconds: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Cumulative time spent on exercises"
+    )
+    time_spent_today_seconds: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Time spent on this specific day"
+    )
+    average_grade: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Average grade across all completed exercises"
+    )
+    average_grade_today: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Average grade for exercises completed today"
+    )
+
+    # Hints and attempts
+    total_hints_requested: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    hints_requested_today: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Achievement tracking
+    achievements_unlocked_total: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Total achievements unlocked up to this date"
+    )
+    achievements_unlocked_today: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Achievements unlocked on this specific day"
+    )
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
+
+    def __repr__(self) -> str:
+        """String representation of ProgressSnapshot."""
+        return f"<ProgressSnapshot(id={self.id}, user_id={self.user_id}, date='{self.snapshot_date}')>"
+
+
+class SkillLevel(Base):
+    """
+    Skill level tracking by topic area for each user.
+    Tracks progression from beginner -> intermediate -> advanced -> expert.
+    """
+    __tablename__ = "skill_levels"
+    __table_args__ = (
+        UniqueConstraint('user_id', 'topic', name='unique_user_topic_skill'),
+        Index('idx_skill_levels_user_id', 'user_id'),
+        Index('idx_skill_levels_topic', 'topic'),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # Foreign key
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    # Topic identification
+    topic: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment="Topic area (e.g., 'algorithms', 'data_structures', 'web_dev')"
+    )
+
+    # Skill level
+    level: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="beginner",
+        comment="beginner, intermediate, advanced, expert"
+    )
+
+    # Metrics for this topic
+    exercises_completed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    average_grade: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    total_time_spent_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Level progression tracking
+    level_updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When the level was last changed"
+    )
+    previous_level: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Previous skill level before last update"
+    )
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
+
+    def __repr__(self) -> str:
+        """String representation of SkillLevel."""
+        return f"<SkillLevel(id={self.id}, user_id={self.user_id}, topic='{self.topic}', level='{self.level}')>"
