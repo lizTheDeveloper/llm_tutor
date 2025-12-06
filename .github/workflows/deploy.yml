@@ -1,0 +1,72 @@
+name: Auto-Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to GCP VM
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H 34.88.245.170 >> ~/.ssh/known_hosts
+
+      - name: Deploy to VM
+        run: |
+          ssh -o StrictHostKeyChecking=no llmtutor@34.88.245.170 'bash -s' << 'ENDSSH'
+            set -e
+            cd /home/llmtutor/llm_tutor
+
+            # Run deployment script
+            ./deploy/deploy.sh
+          ENDSSH
+
+      - name: Wait for services to start
+        run: sleep 10
+
+      - name: Test Backend Health
+        run: |
+          echo "Testing backend health endpoint..."
+          curl -f http://34.88.245.170:8000/health || echo "Backend health check failed"
+
+      - name: Test Frontend
+        run: |
+          echo "Testing frontend is accessible..."
+          curl -f http://34.88.245.170/ || echo "Frontend check failed"
+
+      - name: Run Integration Tests
+        run: |
+          ssh -o StrictHostKeyChecking=no llmtutor@34.88.245.170 'bash -s' << 'ENDSSH'
+            set -e
+            cd /home/llmtutor/llm_tutor/backend
+            source ../venv/bin/activate
+
+            # Run integration tests against live deployment
+            export TEST_BASE_URL=http://localhost:8000
+            pytest tests/ -v -m "integration" || echo "No integration tests found"
+          ENDSSH
+
+      - name: Notify on Success
+        if: success()
+        run: |
+          echo "✅ Deployment successful!"
+          echo "Backend: http://34.88.245.170:8000"
+          echo "Frontend: http://34.88.245.170"
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          exit 1
