@@ -39,7 +39,21 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
     )
 
     # Create Quart app
-    app = Quart(__name__)
+    # Workaround: Set Flask default config for PROVIDE_AUTOMATIC_OPTIONS
+    # This must be set before Quart initialization as it's checked during __init__
+    from flask.config import Config as FlaskConfig
+    original_init = FlaskConfig.__init__
+    def patched_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        self.setdefault("PROVIDE_AUTOMATIC_OPTIONS", True)
+
+    FlaskConfig.__init__ = patched_init
+
+    try:
+        app = Quart(__name__)
+    finally:
+        # Restore original init
+        FlaskConfig.__init__ = original_init
 
     # Apply configuration
     app.config.update(
