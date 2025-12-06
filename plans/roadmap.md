@@ -1022,15 +1022,18 @@ All completed work archived in `/Users/annhoward/src/llm_tutor/plans/completed/r
 
 **File Name:** roadmap.md
 **Location:** /home/llmtutor/llm_tutor/plans/roadmap.md
-**Version:** 1.18
+**Version:** 1.19
 **Date:** 2025-12-06
-**Status:** Active - Stage 4 Complete ✅ (D1-D4 all delivered - 2025-12-06)
+**Status:** Active - Stage 4.5 Complete ✅ (ARCH-REVIEW, SEC-1, SEC-1-FE, DB-OPT all delivered - 2025-12-06)
 **Classification:** Internal
 
 **Related Documents:**
 - requirements.md (v1.2) - Source requirements
 - priorities.md (v1.0) - Feature prioritization
-- completed/roadmap-archive.md - Stages 1 & 2 complete
+- completed/roadmap-archive.md - Stages 1, 2, 3 complete
+- docs/architectural-review-report.md (v1.0) - Architectural review findings
+- docs/anti-patterns.md (v2.0) - Anti-patterns catalog
+- docs/critical-issues-for-roadmap.md (v1.0) - Critical issues for Stage 4.75
 
 ---
 
