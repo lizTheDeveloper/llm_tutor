@@ -36,11 +36,11 @@ async def test_user_with_progress(db_session):
     """Create a test user with some progress data."""
     user = User(
         email="progressor@test.com",
-        username="progressor",
+        name="progressor",
         password_hash="hashed_password",
         email_verified=True,
         is_active=True,
-        primary_language="python",
+        programming_language="python",
         skill_level="intermediate",
         current_streak=5,
         longest_streak=10,
@@ -104,7 +104,7 @@ async def completed_exercises(db_session, test_user_with_progress):
 async def test_get_user_progress_metrics(client, test_user_with_progress, completed_exercises, patched_get_session):
     """Test retrieving comprehensive user progress metrics."""
     # Mock JWT auth
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.get(
             '/api/progress',
             headers={'Authorization': 'Bearer test_token'}
@@ -145,7 +145,7 @@ async def test_unlock_streak_achievement_7_days(client, test_user_with_progress,
     # Set user to have 7 day streak
     test_user_with_progress.current_streak = 7
 
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.get(
             '/api/progress/achievements',
             headers={'Authorization': 'Bearer test_token'}
@@ -170,7 +170,7 @@ async def test_unlock_exercise_milestone_achievement(client, test_user_with_prog
     # Set user to have completed 50 exercises
     test_user_with_progress.exercises_completed = 50
 
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.get(
             '/api/progress/achievements',
             headers={'Authorization': 'Bearer test_token'}
@@ -192,7 +192,7 @@ async def test_achievement_progress_tracking(client, test_user_with_progress, pa
     """Test that achievement progress is tracked (e.g., 45/50 exercises)."""
     test_user_with_progress.exercises_completed = 45
 
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.get(
             '/api/progress/achievements',
             headers={'Authorization': 'Bearer test_token'}
@@ -221,7 +221,7 @@ async def test_streak_maintained_on_daily_completion(client, test_user_with_prog
     # User completed exercise yesterday (streak = 5)
     # Now complete one today - should increment to 6
 
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         # Simulate exercise completion
         response = await client.post(
             '/api/progress/update-streak',
@@ -242,7 +242,7 @@ async def test_streak_broken_on_missed_day(client, test_user_with_progress, patc
     # Set last exercise to 3 days ago - streak should be broken
     test_user_with_progress.last_exercise_date = datetime.utcnow() - timedelta(days=3)
 
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.post(
             '/api/progress/update-streak',
             headers={'Authorization': 'Bearer test_token'},
@@ -265,7 +265,7 @@ async def test_longest_streak_updates(client, test_user_with_progress, patched_g
     # Increment current to 11
     test_user_with_progress.current_streak = 11
 
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.post(
             '/api/progress/update-streak',
             headers={'Authorization': 'Bearer test_token'},
@@ -287,7 +287,7 @@ async def test_longest_streak_updates(client, test_user_with_progress, patched_g
 @pytest.mark.asyncio
 async def test_get_performance_statistics(client, test_user_with_progress, completed_exercises, patched_get_session):
     """Test retrieval of user performance statistics."""
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.get(
             '/api/progress/statistics',
             headers={'Authorization': 'Bearer test_token'}
@@ -313,7 +313,7 @@ async def test_get_performance_statistics(client, test_user_with_progress, compl
 @pytest.mark.asyncio
 async def test_get_statistics_by_time_period(client, test_user_with_progress, completed_exercises, patched_get_session):
     """Test statistics filtered by time period (daily, weekly, monthly)."""
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         # Test weekly statistics
         response = await client.get(
             '/api/progress/statistics?period=weekly',
@@ -336,7 +336,7 @@ async def test_get_statistics_by_time_period(client, test_user_with_progress, co
 @pytest.mark.asyncio
 async def test_get_progress_history(client, test_user_with_progress, completed_exercises, patched_get_session):
     """Test retrieval of historical progress data."""
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.get(
             '/api/progress/history?days=30',
             headers={'Authorization': 'Bearer test_token'}
@@ -360,7 +360,7 @@ async def test_get_progress_history(client, test_user_with_progress, completed_e
 @pytest.mark.asyncio
 async def test_progress_history_date_range(client, test_user_with_progress, patched_get_session):
     """Test progress history with custom date range."""
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         start_date = (datetime.utcnow() - timedelta(days=7)).date().isoformat()
         end_date = datetime.utcnow().date().isoformat()
 
@@ -389,7 +389,7 @@ async def test_assign_badge_on_achievement(client, test_user_with_progress, patc
     """Test that badges are assigned when achievements are unlocked."""
     test_user_with_progress.current_streak = 7
 
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.get(
             '/api/progress/badges',
             headers={'Authorization': 'Bearer test_token'}
@@ -419,7 +419,7 @@ async def test_badge_list_shows_unearned_badges(client, test_user_with_progress,
     test_user_with_progress.current_streak = 2
     test_user_with_progress.exercises_completed = 3
 
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.get(
             '/api/progress/badges',
             headers={'Authorization': 'Bearer test_token'}
@@ -443,7 +443,7 @@ async def test_badge_list_shows_unearned_badges(client, test_user_with_progress,
 @pytest.mark.asyncio
 async def test_export_progress_data_json(client, test_user_with_progress, completed_exercises, patched_get_session):
     """Test exporting progress data in JSON format."""
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.get(
             '/api/progress/export?format=json',
             headers={'Authorization': 'Bearer test_token'}
@@ -464,7 +464,7 @@ async def test_export_progress_data_json(client, test_user_with_progress, comple
 @pytest.mark.asyncio
 async def test_export_progress_data_csv(client, test_user_with_progress, completed_exercises, patched_get_session):
     """Test exporting progress data in CSV format."""
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.get(
             '/api/progress/export?format=csv',
             headers={'Authorization': 'Bearer test_token'}
@@ -487,7 +487,7 @@ async def test_export_progress_data_csv(client, test_user_with_progress, complet
 @pytest.mark.asyncio
 async def test_track_skill_levels_by_topic(client, test_user_with_progress, completed_exercises, patched_get_session):
     """Test that skill levels are tracked per topic area."""
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.get(
             '/api/progress/skill-levels',
             headers={'Authorization': 'Bearer test_token'}
@@ -516,7 +516,7 @@ async def test_skill_level_progression(client, test_user_with_progress, patched_
     # This would test the logic that advances users from beginner -> intermediate -> advanced
     # based on exercises completed and grades achieved
 
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.post(
             '/api/progress/calculate-skill-level',
             headers={'Authorization': 'Bearer test_token'},
@@ -542,7 +542,7 @@ async def test_progress_for_new_user_with_no_exercises(client, patched_get_sessi
     # Create brand new user
     new_user = User(
         email="newbie@test.com",
-        username="newbie",
+        name="newbie",
         password_hash="hashed_password",
         email_verified=True,
         is_active=True,
@@ -551,7 +551,7 @@ async def test_progress_for_new_user_with_no_exercises(client, patched_get_sessi
         exercises_completed=0
     )
 
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': new_user.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': new_user.id}):
         response = await client.get(
             '/api/progress',
             headers={'Authorization': 'Bearer test_token'}
@@ -575,7 +575,7 @@ async def test_streak_calculation_handles_timezone_boundaries(client, test_user_
     # even if it's still "yesterday" in UTC
 
     # For MVP, we'll use UTC, but this test documents the requirement
-    with patch('src.middleware.auth.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
+    with patch('src.middleware.auth_middleware.verify_jwt_token', return_value={'user_id': test_user_with_progress.id}):
         response = await client.post(
             '/api/progress/update-streak',
             headers={'Authorization': 'Bearer test_token'},
