@@ -11,7 +11,7 @@ from src.logging_config import get_logger
 from src.middleware.error_handler import APIError
 from src.middleware.auth_middleware import require_auth, get_current_user_id
 from src.middleware.rate_limiter import rate_limit
-from src.middleware.csrf_protection import inject_csrf_token_on_login, clear_csrf_token_on_logout
+from src.middleware.csrf_protection import inject_csrf_token_on_login, clear_csrf_token_on_logout, csrf_protect
 from src.services.auth_service import AuthService
 from src.services.email_service import get_email_service
 from src.services.oauth_service import OAuthService
