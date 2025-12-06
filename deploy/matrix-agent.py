@@ -125,31 +125,25 @@ class LLMTutorMatrixAgent:
         self.reporter = DeploymentReporter(PROJECT_ROOT / ".matrix-state.json")
         self.feedback_file = PROJECT_ROOT / "feedback" / "matrix-feedback.jsonl"
 
-    async def register_or_login(self):
-        """Register bot account or login if already exists."""
-        # Try to login first
-        response = await self.client.login(BOT_PASSWORD)
-
-        if isinstance(response, LoginResponse):
-            print(f"✅ Logged in as {self.client.user}")
-            return True
-
-        # If login failed, try registration with token
-        print(f"Login failed, attempting registration...")
+    async def login(self):
+        """Login to Matrix account."""
         try:
-            response = await self.client.register(
-                username=BOT_USERNAME,
-                password=BOT_PASSWORD,
-                auth={"type": "m.login.registration_token", "token": REGISTRATION_TOKEN}
-            )
-            if response.user_id:
-                print(f"✅ Registered new account: {response.user_id}")
-                return True
-        except Exception as e:
-            print(f"❌ Registration failed: {e}")
-            return False
+            response = await self.client.login(BOT_PASSWORD)
 
-        return False
+            if isinstance(response, LoginResponse):
+                print(f"✅ Logged in as {self.client.user}")
+                return True
+            else:
+                print(f"❌ Login failed: {response}")
+                print(f"\n⚠️  Please register the bot account manually first:")
+                print(f"   1. Go to https://app.element.io")
+                print(f"   2. Register account: @{BOT_USERNAME}:themultiverse.school")
+                print(f"   3. Use registration token: {REGISTRATION_TOKEN}")
+                print(f"   4. Set password to: {BOT_PASSWORD}")
+                return False
+        except Exception as e:
+            print(f"❌ Login error: {e}")
+            return False
 
     async def join_channel(self):
         """Join the agentic-sdlc channel."""
@@ -304,7 +298,7 @@ Test the platform and send feedback to this channel!
             mode: "report" for one-time deployment report, "listen" for continuous feedback
         """
         try:
-            if not await self.register_or_login():
+            if not await self.login():
                 return
 
             if not await self.join_channel():

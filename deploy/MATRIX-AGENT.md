@@ -36,11 +36,25 @@ Autonomous agent that reports deployment milestones and handles user feedback vi
 
 ## Setup
 
-### On the VM
+### Step 1: Register Bot Account
+
+First, manually register the bot account using Element:
+
+1. Go to https://app.element.io
+2. Click "Create Account"
+3. Click "Edit" to change homeserver to `matrix.themultiverse.school`
+4. Enter username: `llm-tutor-agent`
+5. Enter password: `llm-tutor-matrix-2024` (or your custom password)
+6. When prompted for registration token, enter: `multiversemultiswarm`
+7. Complete registration
+
+Your bot account will be: `@llm-tutor-agent:themultiverse.school`
+
+### Step 2: Deploy on the VM
 
 ```bash
-# Set bot password (replace with secure password)
-export MATRIX_BOT_PASSWORD="your-secure-password-here"
+# Set bot password (must match what you used in Step 1)
+export MATRIX_BOT_PASSWORD="llm-tutor-matrix-2024"
 
 # Run setup script
 ./deploy/setup-matrix-agent.sh
