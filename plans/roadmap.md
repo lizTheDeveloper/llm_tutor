@@ -1722,10 +1722,11 @@
 
   **Documentation**: devlog/workstream-qa1-phase5-test-infrastructure-performance-fixes.md
 
-- [ ] **Phase 6: Coverage Improvement** (NOT STARTED - Estimated 3-4 days)
-  - [ ] Add missing backend tests to reach 80% coverage (services: 0-43% → 80%)
-  - [ ] Add missing API endpoint tests (target 80%)
-  - [ ] Cover middleware gaps (target 80%)
+- [x] **Phase 6: Test Failure Fixes** (IN PROGRESS - tdd-workflow-engineer - Claimed 2025-12-06)
+  - [ ] Fix hardcoded emails in 10 test files (127 IntegrityErrors)
+  - [ ] Fix database optimization tests (13 failures)
+  - [ ] Fix CSRF protection tests (21 errors)
+  - [ ] Verify 60%+ pass rate target reached
 
 - [ ] **Phase 7: Frontend Testing** (NOT STARTED - Estimated 3-4 days)
   - [ ] Analyze current frontend coverage
