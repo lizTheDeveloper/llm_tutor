@@ -31,7 +31,8 @@ class TestRequireVerifiedEmailDecorator:
 
     @pytest.mark.asyncio
     async def test_decorator_blocks_unverified_user(
-        self, client, test_user_unverified, auth_headers_unverified
+        self, client, test_user_unverified, auth_headers_unverified,
+        mock_jwt_auth_factory, patched_get_session
     ):
         """
         Test that require_verified_email decorator blocks unverified users.
@@ -41,15 +42,16 @@ class TestRequireVerifiedEmailDecorator:
         Then: Request is rejected with 403 status
         """
         # Try to access a protected route (will use daily exercise endpoint)
-        response = await client.get(
-            "/api/exercises/daily",
-            headers=auth_headers_unverified
-        )
+        with mock_jwt_auth_factory(test_user_unverified):
+            response = await client.get(
+                "/api/exercises/daily",
+                headers=auth_headers_unverified
+            )
 
-        assert response.status_code == 403
-        data = await response.get_json()
-        assert "email verification" in data["error"].lower()
-        assert "verify your email" in data["error"].lower()
+            assert response.status_code == 403
+            data = await response.get_json()
+            assert "email verification" in data["error"].lower()
+            assert "verify your email" in data["error"].lower()
 
     @pytest.mark.asyncio
     async def test_decorator_allows_verified_user(
@@ -604,27 +606,11 @@ async def test_user_unverified(db_session):
 
 
 @pytest.fixture
-async def auth_headers_unverified(test_user_unverified):
+def auth_headers_unverified(test_user_unverified):
     """Create auth headers for unverified user."""
-    token = AuthService.generate_jwt_token(
-        user_id=test_user_unverified.id,
-        email=test_user_unverified.email,
-        role=test_user_unverified.role.value,
-        token_type="access"
-    )
-
-    # Create session in Redis
-    await AuthService.create_session(
-        user_id=test_user_unverified.id,
-        access_token=token,
-        refresh_token="refresh_token_placeholder",
-        user_data={
-            "name": test_user_unverified.name,
-            "email_verified": test_user_unverified.email_verified
-        }
-    )
-
-    return {"Authorization": f"Bearer {token}"}
+    # Just return a dummy token - tests will use mock_jwt_auth_factory
+    # to properly mock the authentication
+    return {"Authorization": "Bearer test_token_unverified"}
 
 
 @pytest.fixture
@@ -646,24 +632,8 @@ async def test_user_oauth(db_session):
 
 
 @pytest.fixture
-async def auth_headers_oauth(test_user_oauth):
+def auth_headers_oauth(test_user_oauth):
     """Create auth headers for OAuth user."""
-    token = AuthService.generate_jwt_token(
-        user_id=test_user_oauth.id,
-        email=test_user_oauth.email,
-        role=test_user_oauth.role.value,
-        token_type="access"
-    )
-
-    # Create session in Redis
-    await AuthService.create_session(
-        user_id=test_user_oauth.id,
-        access_token=token,
-        refresh_token="refresh_token_placeholder",
-        user_data={
-            "name": test_user_oauth.name,
-            "email_verified": test_user_oauth.email_verified
-        }
-    )
-
-    return {"Authorization": f"Bearer {token}"}
+    # Just return a dummy token - tests will use mock_jwt_auth_factory
+    # to properly mock the authentication
+    return {"Authorization": "Bearer test_token_oauth"}
