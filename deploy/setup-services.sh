@@ -24,7 +24,7 @@ Type=simple
 User=llmtutor
 WorkingDirectory=/home/llmtutor/llm_tutor/backend
 Environment="PATH=/home/llmtutor/llm_tutor/venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/llmtutor/llm_tutor/venv/bin/hypercorn app:app --bind 0.0.0.0:8000
+ExecStart=/home/llmtutor/llm_tutor/venv/bin/hypercorn src.app:app --bind 0.0.0.0:8000
 Restart=always
 RestartSec=10
 
