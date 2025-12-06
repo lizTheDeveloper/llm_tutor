@@ -46,6 +46,43 @@ def get_token_from_header() -> Optional[str]:
     return parts[1]
 
 
+def get_token_from_request() -> Optional[str]:
+    """
+    Extract JWT token from httpOnly cookie or Authorization header.
+
+    Priority:
+    1. Authorization header (for backward compatibility and API clients)
+    2. access_token cookie (for browser clients with httpOnly cookies)
+
+    Returns:
+        JWT token or None if not found
+
+    Raises:
+        APIError: If Authorization header is malformed
+
+    Security Note:
+    This addresses AP-SEC-001: Token storage in localStorage vulnerability.
+    Cookies are httpOnly, preventing XSS attacks from stealing tokens.
+    """
+    # Try to get token from Authorization header first (backward compatibility)
+    try:
+        token = get_token_from_header()
+        if token:
+            logger.debug("Token found in Authorization header")
+            return token
+    except APIError:
+        # If Authorization header is malformed, raise the error
+        raise
+
+    # Try to get token from httpOnly cookie
+    token = request.cookies.get("access_token")
+    if token:
+        logger.debug("Token found in httpOnly cookie")
+        return token
+
+    return None
+
+
 def require_auth(function: Callable) -> Callable:
     """
     Decorator to require authentication for route.
@@ -63,8 +100,8 @@ def require_auth(function: Callable) -> Callable:
 
     @wraps(function)
     async def wrapper(*args, **kwargs):
-        # Get token from header
-        token = get_token_from_header()
+        # Get token from cookie or header
+        token = get_token_from_request()
 
         if not token:
             logger.warning("Missing authentication token")
@@ -239,8 +276,8 @@ def optional_auth(function: Callable) -> Callable:
     @wraps(function)
     async def wrapper(*args, **kwargs):
         try:
-            # Try to get token from header
-            token = get_token_from_header()
+            # Try to get token from cookie or header
+            token = get_token_from_request()
 
             if token:
                 # Verify token

@@ -58,7 +58,7 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
     # Apply configuration
     app.config.update(
         {
-            "SECRET_KEY": settings.secret_key,
+            "SECRET_KEY": settings.secret_key.get_secret_value(),
             "DEBUG": settings.debug,
             "TESTING": False,
         }
@@ -162,13 +162,15 @@ def create_app(config_override: Optional[dict] = None) -> Quart:
             "environment": settings.app_env,
         }
 
-        # Check database connectivity
+        # Check database connectivity (using async engine to avoid dual-engine overhead)
         try:
             from sqlalchemy import text
 
             db_manager = get_database()
-            with db_manager.sync_engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
+            # Use async engine to avoid creating unnecessary sync engine
+            # This addresses AP-ARCH-004: Dual database engines
+            async with db_manager.async_engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
             health_status["database"] = "connected"
         except Exception as exception:
             logger.error(
