@@ -1,783 +1,1048 @@
-# Anti-Pattern Checklist for LLM Tutor Platform
-## Autonomous Code Review - December 2025
+# Anti-Patterns Checklist
+## LLM Coding Tutor Platform (CodeMentor)
 
-**Document Version:** 1.0
-**Date:** 2025-12-06
-**Reviewer:** autonomous-reviewer agent
-**Status:** Active
-
----
-
-## Table of Contents
-
-1. [Critical Issues](#critical-issues)
-2. [High Priority Issues](#high-priority-issues)
-3. [Medium Priority Issues](#medium-priority-issues)
-4. [Low Priority Issues](#low-priority-issues)
-5. [Positive Patterns](#positive-patterns)
-6. [Recommendations](#recommendations)
+**Document Version:** 1.0  
+**Created:** 2025-12-06  
+**Purpose:** Prevent recurring architectural and security anti-patterns during development
 
 ---
 
-## Critical Issues
+## How to Use This Checklist
 
-### C1: Hardcoded JWT Secret in .env File (SECURITY)
-**Severity:** Critical
-**Category:** Security - Secrets Management
-**Location:** `/home/llmtutor/llm_tutor/.env:13`
+This checklist documents anti-patterns found in the codebase and provides guidelines to avoid them in future development. Review this checklist:
 
-**Issue:**
-The JWT secret is hardcoded and committed to the repository:
-```
-JWT_SECRET="228c16fc98109fde31f7dc521c887555e98c927d7b0697dd8f5363a8cb5a3579"
-```
+- **Before starting new features:** Check relevant sections for patterns to avoid
+- **During code review:** Verify new code doesn't introduce listed anti-patterns
+- **Monthly:** Review and update with newly discovered patterns
 
-**Risk:**
-- Secret is exposed in version control history
-- All JWT tokens can be forged if this secret is compromised
-- Complete authentication bypass possible
-- Production environment using same secret as development
+**Severity Levels:**
+- **CRITICAL (P0):** Deployment blocker, must fix immediately
+- **HIGH (P1):** Security/performance risk, fix before production
+- **MEDIUM (P2):** Maintainability issue, fix in next sprint
+- **LOW (P3):** Nice-to-have improvement, backlog
 
-**Recommendation:**
-1. **IMMEDIATE**: Rotate the JWT secret in production
-2. Generate new secrets using cryptographically secure random generator
-3. Store secrets in proper secrets management system (AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager)
-4. Remove `.env` from git history (use `git filter-branch` or BFG Repo-Cleaner)
-5. Never commit `.env` files - `.env.example` only
-6. Add pre-commit hook to prevent accidental secret commits
-7. Use different secrets per environment (dev/staging/prod)
+---
 
-**Example Fix:**
-```python
-# config.py - enforce environment-based secrets
-import os
-import sys
+## 1. Security Anti-Patterns
 
-def validate_secrets():
-    if os.getenv("ENVIRONMENT") == "production":
-        # Require secrets from secrets manager, not env file
-        if not os.getenv("USE_SECRETS_MANAGER"):
-            sys.exit("Production must use secrets manager")
+### AP-SEC-001: Secrets in Git Repository (CRITICAL)
+
+**What:** Committing secrets, API keys, or production URLs to git  
+**Why It's Bad:** Public exposure, difficult to rotate, compliance violations  
+**Status:** ❌ **FOUND** - `frontend/.env.production` tracked in git with production IP
+
+**Example (BAD):**
+```bash
+# frontend/.env.production (tracked in git!)
+VITE_API_BASE_URL=http://35.209.246.229/api/v1
+VITE_ENV=production
 ```
 
+**How to Avoid:**
+```bash
+# ✅ .gitignore should have:
+.env
+*.env
+!.env.example
+
+# ✅ Create .env.example with placeholders:
+VITE_API_BASE_URL=https://api.example.com/api/v1
+VITE_ENV=production
+
+# ✅ Document in README.md:
+"Copy .env.example to .env.production and fill in actual values"
+```
+
+**Detection:**
+```bash
+# Check for tracked .env files:
+git ls-files | grep -E "\.env$|\.env\..+" | grep -v "\.env\.example"
+
+# Check for hardcoded secrets:
+git grep -E "api_key|password|secret|token" -- "*.env*"
+```
+
+**Remediation:**
+```bash
+# Remove from git history:
+git filter-branch --tree-filter 'rm -f frontend/.env.production' HEAD
+git push --force
+
+# Update .gitignore:
+echo "*.env.production" >> .gitignore
+
+# Rotate any exposed secrets immediately
+```
+
 ---
 
-### C2: .env File Committed to Repository (SECURITY)
-**Severity:** Critical
-**Category:** Security - Configuration Management
-**Location:** `.gitignore` configuration issue
+### AP-SEC-002: Placeholder Security Implementation (CRITICAL)
 
-**Issue:**
-The `.env` file containing sensitive configuration is tracked in git:
-- Database credentials
-- Redis URL
-- JWT secrets
-- Environment configuration
+**What:** Decorator or security check that logs but doesn't enforce  
+**Why It's Bad:** False sense of security, allows unauthorized access  
+**Status:** ❌ **FOUND** - `require_verified_email` decorator is placeholder
 
-**Risk:**
-- All secrets exposed in git history
-- Cannot rotate secrets without breaking old commits
-- Security audit trail compromised
-- Violates security best practices
-
-**Recommendation:**
-1. **IMMEDIATE**: Remove `.env` from git tracking
-2. Create `.env.example` with dummy values
-3. Update documentation for local setup
-4. Rotate all exposed secrets
-5. Add `.env` to `.gitignore` (already present, but file was committed before)
-6. Use `git rm --cached .env` to stop tracking
-7. Consider using `git-secrets` or similar tools
-
----
-
-### C3: Missing Email Verification Check in Protected Routes (SECURITY)
-**Severity:** Critical
-**Category:** Security - Authorization
-**Location:** `/home/llmtutor/llm_tutor/backend/src/middleware/auth_middleware.py:186-219`
-
-**Issue:**
-The `require_verified_email` decorator is implemented but contains only a placeholder:
+**Example (BAD):**
 ```python
 def require_verified_email(function: Callable) -> Callable:
-    # In a full implementation, we would fetch user from database to check
-    # email_verified status. For now, we'll document this requirement.
-    # The actual check should be implemented when integrating with database queries.
-
-    logger.debug("Email verification check (placeholder)", ...)
+    @wraps(function)
+    async def wrapper(*args, **kwargs):
+        # TODO: In a full implementation, we would fetch user from database
+        logger.debug("Email verification check (placeholder)")
+        return await function(*args, **kwargs)  # ⚠️ Doesn't actually check!
+    return wrapper
 ```
 
-**Risk:**
-- Unverified users can access email-protected resources
-- Security requirement documented but not enforced
-- False sense of security from decorator usage
-- Requirements specification (REQ-AUTH-001) not fully implemented
-
-**Recommendation:**
-1. **HIGH PRIORITY**: Implement actual email verification check
-2. Query database to verify `email_verified` status
-3. Add integration tests for email verification enforcement
-4. Audit all routes to identify which should require verified email
-5. Consider adding email verification to JWT claims for performance
-
-**Example Fix:**
+**How to Avoid:**
 ```python
-@wraps(function)
-async def wrapper(*args, **kwargs):
-    if not hasattr(g, "user_id"):
-        raise APIError("Authentication required", status_code=401)
-
-    # ACTUAL IMPLEMENTATION:
-    async with get_async_db_session() as session:
-        result = await session.execute(
-            select(User.email_verified).where(User.id == g.user_id)
-        )
-        email_verified = result.scalar_one_or_none()
-
-        if not email_verified:
-            raise APIError("Email verification required", status_code=403)
-
-    return await function(*args, **kwargs)
+# ✅ Full implementation:
+def require_verified_email(function: Callable) -> Callable:
+    @wraps(function)
+    async def wrapper(*args, **kwargs):
+        if not hasattr(g, "user_id"):
+            raise APIError("Authentication required", status_code=401)
+        
+        # ACTUALLY CHECK EMAIL VERIFICATION
+        async with get_async_db_session() as session:
+            user = await session.get(User, g.user_id)
+            if not user or not user.email_verified:
+                logger.warning("Unverified email access attempt", 
+                              extra={"user_id": g.user_id})
+                raise APIError("Email verification required", status_code=403)
+        
+        return await function(*args, **kwargs)
+    return wrapper
 ```
 
----
+**Detection:**
+- Code review: Search for "TODO", "placeholder", "In a full implementation"
+- Testing: Write tests that verify security is actually enforced
 
-## High Priority Issues
-
-### H1: Inconsistent Error Handling Patterns (CODE QUALITY)
-**Severity:** High
-**Category:** Error Handling
-**Location:** Various API endpoints
-
-**Issue:**
-Error handling patterns vary across the codebase:
-- Some endpoints use try/except with specific exceptions
-- Others rely on middleware error handlers
-- Inconsistent error response formats
-- Some errors logged, others silently swallowed
-
-**Example Locations:**
-- `/backend/src/api/auth.py` - Good error handling with APIError
-- `/backend/src/api/chat.py` - Inconsistent exception catching
-
-**Recommendation:**
-1. Establish consistent error handling guidelines
-2. Use APIError consistently for user-facing errors
-3. Ensure all exceptions are logged with context
-4. Add request correlation IDs for tracing
-5. Document error handling patterns in CLAUDE.md
+**Prevention:**
+- Never merge security code with "TODO" or "placeholder" comments
+- Write tests BEFORE implementing security features (TDD)
+- Security features must be complete or not exist (no partial implementations)
 
 ---
 
-### H2: Missing Rate Limiting on Critical Endpoints (SECURITY)
-**Severity:** High
-**Category:** Security - DoS Prevention
-**Location:** Multiple API endpoints
+### AP-SEC-003: Token Storage in localStorage (RESOLVED ✅)
 
-**Issue:**
-Not all endpoints have rate limiting applied:
-- `/api/auth/register` has rate limiting ✓
-- `/api/chat/send` - MISSING rate limiting
-- `/api/users/profile` - MISSING rate limiting
-- LLM endpoints especially vulnerable to abuse
+**What:** Storing JWT tokens in browser localStorage  
+**Why It's Bad:** Vulnerable to XSS attacks (JavaScript can read localStorage)  
+**Status:** ✅ **RESOLVED** - SEC-1-FE work stream implemented httpOnly cookies
 
-**Risk:**
-- LLM API cost explosion from abuse
-- DoS attacks on unprotected endpoints
-- Resource exhaustion
-- Violates REQ-SEC-007 (DDoS mitigation)
+**Example (BAD - OLD):**
+```typescript
+// ❌ DON'T DO THIS
+localStorage.setItem('access_token', token);
+const token = localStorage.getItem('access_token');
+```
 
-**Recommendation:**
-1. Audit all endpoints for rate limiting needs
-2. Apply rate limiting to:
-   - All LLM-related endpoints (strict limits)
-   - Profile update endpoints
-   - GitHub integration endpoints
-3. Implement tiered rate limiting based on user subscription
-4. Add monitoring for rate limit violations
-5. Consider token bucket algorithm for LLM requests
+**How to Avoid (CURRENT):**
+```typescript
+// ✅ Backend sets httpOnly cookie (frontend can't access via JavaScript)
+// backend/src/api/auth.py
+response.set_cookie(
+    "access_token",
+    access_token,
+    httponly=True,      # Prevents JavaScript access (XSS protection)
+    secure=True,        # HTTPS only
+    samesite="strict",  # CSRF protection
+    max_age=24 * 3600
+)
 
-**Example Fix:**
+// ✅ Frontend: Cookies sent automatically, no storage needed
+// axios automatically includes cookies with credentials: 'include'
+```
+
+**Key Rule:** Never store sensitive tokens in localStorage/sessionStorage. Always use httpOnly cookies for authentication tokens.
+
+---
+
+### AP-SEC-004: Weak Password Validation
+
+**What:** Allowing weak passwords (short, no complexity requirements)  
+**Why It's Bad:** Enables brute force attacks, account takeovers  
+**Status:** ✅ **GOOD** - Strong validation implemented
+
+**Current Implementation (GOOD):**
+```python
+PASSWORD_REGEX = re.compile(
+    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$"
+)
+
+# Requires:
+# - Minimum 12 characters
+# - At least one lowercase letter
+# - At least one uppercase letter
+# - At least one digit
+# - At least one special character (@$!%*?&)
+```
+
+**Checklist for New Authentication Features:**
+- [ ] Password minimum 12 characters
+- [ ] Enforce mixed case, numbers, symbols
+- [ ] Check against common password lists (e.g., rockyou.txt)
+- [ ] Rate limit login attempts (prevent brute force)
+- [ ] Lock account after N failed attempts
+- [ ] Email notification on password change
+
+---
+
+### AP-SEC-005: Missing Rate Limiting on Expensive Endpoints
+
+**What:** No rate limits on endpoints that call expensive external APIs  
+**Why It's Bad:** Cost abuse, DoS attacks, budget exhaustion  
+**Status:** ❌ **FOUND** - LLM endpoints not rate limited
+
+**Example (BAD - CURRENT):**
 ```python
 @chat_bp.route("/send", methods=["POST"])
 @require_auth
-@rate_limit(requests_per_minute=10, requests_per_hour=100)  # ADD THIS
 async def send_message():
-    ...
+    # ⚠️ No rate limit! User can spam LLM calls
+    message = data["message"]
+    response = await LLMService.generate_response(message)  # $0.01-0.10 per call
+    return jsonify(response), 200
 ```
 
----
-
-### H3: Insufficient Input Validation (SECURITY)
-**Severity:** High
-**Category:** Security - Input Validation
-**Location:** Various API endpoints
-
-**Issue:**
-Input validation inconsistent across endpoints:
-- Auth endpoints use Pydantic schemas ✓
-- Some endpoints validate manually
-- Others accept raw request data without validation
-- Missing max length checks on text fields
-
-**Examples:**
-- Chat messages - no max length validation
-- GitHub URLs - basic validation only
-- User bio/career goals - unlimited length
-
-**Risk:**
-- Database overflow attacks
-- Storage exhaustion
-- XSS vulnerabilities in stored data
-- Poor user experience from unclear limits
-
-**Recommendation:**
-1. Define Pydantic schemas for ALL request bodies
-2. Enforce maximum lengths on all text fields:
-   - Chat messages: 10,000 characters
-   - User bio: 1,000 characters
-   - Career goals: 2,000 characters
-3. Validate and sanitize all HTML/markdown content
-4. Add server-side validation matching frontend validation
-5. Return clear validation errors to users
-
----
-
-### H4: Lack of Database Query Optimization (PERFORMANCE)
-**Severity:** High
-**Category:** Performance - Database
-**Location:** Various database queries
-
-**Issue:**
-Potential N+1 query problems and missing optimizations:
-- No eager loading strategies documented
-- Missing database indexes on foreign keys
-- Query pagination not consistently implemented
-- No query result caching strategy
-
-**Examples:**
+**How to Avoid:**
 ```python
-# Potential N+1 in conversation queries
-conversations = await session.execute(select(Conversation))
-for conv in conversations:
-    messages = await session.execute(
-        select(Message).where(Message.conversation_id == conv.id)
-    )  # N+1 problem!
+from src.middleware.rate_limiter import rate_limit
+
+@chat_bp.route("/send", methods=["POST"])
+@require_auth
+@rate_limit(tier_limits={
+    "free": "10/hour",
+    "basic": "100/hour",
+    "premium": "1000/hour"
+})
+async def send_message():
+    message = data["message"]
+    response = await LLMService.generate_response(message)
+    return jsonify(response), 200
 ```
 
-**Recommendation:**
-1. Add eager loading with `selectinload()` for relationships
-2. Implement pagination on all list endpoints
-3. Add caching layer for frequently accessed data
-4. Create database indexes on foreign keys
-5. Use `explain analyze` to profile slow queries
-6. Set up query performance monitoring
+**Endpoints Requiring Rate Limits:**
+- `/api/chat/send` - LLM calls ($$$)
+- `/api/exercises/generate` - LLM exercise generation ($$$)
+- `/api/exercises/{id}/hint` - LLM hints ($$$)
+- `/api/auth/login` - Prevent brute force (security)
+- `/api/auth/register` - Prevent account spam (abuse)
+- `/api/github/review` - GitHub API quota (abuse)
+
+**Rate Limit Strategy:**
+- Free tier: Strict limits (10 LLM calls/hour)
+- Basic tier: Moderate (100 LLM calls/hour)
+- Premium tier: Generous (1000 LLM calls/hour)
+- Admin tier: No limit (or very high limit)
 
 ---
 
-### H5: Missing CSRF Protection (SECURITY)
-**Severity:** High
-**Category:** Security - CSRF
-**Location:** Authentication and state-changing endpoints
+### AP-SEC-006: Input Validation Inconsistency
 
-**Issue:**
-While REQ-SEC-004 specifies CSRF protection, implementation is unclear:
-- No CSRF token generation visible
-- No CSRF validation middleware
-- Relying only on JWT authentication
+**What:** Some endpoints validate input with Pydantic, others use manual checks  
+**Why It's Bad:** Injection attacks, XSS, data corruption, hard to audit  
+**Status:** ⚠️ **FOUND** - Inconsistent across endpoints
 
-**Risk:**
-- Cross-Site Request Forgery attacks possible
-- State-changing operations vulnerable
-- Violates security requirements
-
-**Recommendation:**
-1. Implement CSRF token system for state-changing operations
-2. Add SameSite cookie attribute for JWT tokens
-3. Require custom headers for AJAX requests
-4. Consider double-submit cookie pattern
-5. Document CSRF protection strategy
-
----
-
-## Medium Priority Issues
-
-### M1: Incomplete Test Coverage (TESTING)
-**Severity:** Medium
-**Category:** Testing - Coverage
-**Location:** Backend tests
-
-**Issue:**
-Test coverage analysis:
-- 11 test files found
-- No coverage metrics available
-- Requirements specify 80% minimum coverage (REQ-MAINT-001)
-- Integration tests exist but coverage unknown
-- E2E tests not implemented
-
-**Recommendation:**
-1. Run coverage analysis: `pytest --cov=backend/src --cov-report=html`
-2. Identify untested code paths
-3. Add tests to reach 80% coverage minimum
-4. Set up coverage reporting in CI/CD
-5. Implement E2E tests for critical user journeys
-6. Add test coverage gates in CI/CD pipeline
-
----
-
-### M2: Inconsistent Logging Practices (OBSERVABILITY)
-**Severity:** Medium
-**Category:** Observability - Logging
-**Location:** Throughout codebase
-
-**Issue:**
-Logging patterns vary across modules:
-- Structured logging used (structlog) ✓
-- Inconsistent log levels (some debug, some info for same types of events)
-- Missing correlation IDs for request tracing
-- Some sensitive data might be logged (password hashes in success messages)
-- No consistent logging of user actions for audit
-
-**Recommendation:**
-1. Establish logging guidelines:
-   - DEBUG: Development details
-   - INFO: Normal operations
-   - WARNING: Unexpected but handled
-   - ERROR: Failures requiring attention
-   - CRITICAL: System-wide failures
-2. Add request correlation IDs to all logs
-3. Audit logs for sensitive data leakage
-4. Implement structured logging for user actions (audit trail)
-5. Add log aggregation setup documentation
-
----
-
-### M3: Missing API Documentation (DOCUMENTATION)
-**Severity:** Medium
-**Category:** Documentation
-**Location:** API endpoints
-
-**Issue:**
-While OpenAPI specification is configured:
-- No Swagger/ReDoc endpoint visible
-- API documentation not auto-generated
-- Endpoint documentation in docstrings only
-- No published API documentation for frontend developers
-
-**Recommendation:**
-1. Configure OpenAPI/Swagger UI endpoint
-2. Add comprehensive docstrings to all endpoints
-3. Generate and publish API documentation
-4. Add request/response examples
-5. Document authentication requirements
-6. Create API versioning strategy
-
----
-
-### M4: Lack of Monitoring and Alerting (OBSERVABILITY)
-**Severity:** Medium
-**Category:** Observability - Monitoring
-**Location:** Infrastructure
-
-**Issue:**
-Production monitoring not evident:
-- No APM integration visible
-- Missing health check metrics
-- No alerting configuration
-- Error tracking setup unclear
-- Requirements specify Datadog/New Relic (REQ-TECH-STACK-005) but not implemented
-
-**Recommendation:**
-1. Integrate APM solution (Datadog, New Relic, or open-source alternative)
-2. Set up error tracking (Sentry, Rollbar)
-3. Configure health check monitoring
-4. Add custom metrics for:
-   - LLM request latency
-   - LLM cost tracking
-   - Database query performance
-   - User session metrics
-5. Create alerting runbooks
-6. Set up on-call rotation
-
----
-
-### M5: Insufficient Security Headers (SECURITY)
-**Severity:** Medium
-**Category:** Security - Headers
-**Location:** `/backend/src/middleware/security_headers.py`
-
-**Issue:**
-Security headers middleware exists but needs verification:
-- Need to confirm all OWASP recommended headers present
-- CSP (Content Security Policy) implementation needs review
-- HSTS configuration needs verification
-- X-Frame-Options, X-Content-Type-Options, etc.
-
-**Recommendation:**
-1. Run security header scan (securityheaders.com)
-2. Verify all headers from REQ-SEC-005 implemented:
-   - Content-Security-Policy
-   - Strict-Transport-Security
-   - X-Frame-Options
-   - X-Content-Type-Options
-   - Referrer-Policy
-3. Add comprehensive CSP policy
-4. Test headers in all environments
-5. Document security header configuration
-
----
-
-### M6: Lack of Data Validation on User Memory/Embeddings (DATA INTEGRITY)
-**Severity:** Medium
-**Category:** Data Integrity
-**Location:** `/backend/src/services/embedding_service.py`
-
-**Issue:**
-Embedding service lacks comprehensive validation:
-- No validation on embedding dimensions
-- Missing checks for malformed vectors
-- No error handling for vector database failures
-- Unclear fallback behavior
-
-**Recommendation:**
-1. Add validation for embedding dimensions
-2. Implement error handling for vector DB operations
-3. Define fallback strategy when embeddings unavailable
-4. Add monitoring for embedding generation failures
-5. Document embedding model versioning strategy
-
----
-
-### M7: Missing Database Migration Strategy Documentation (OPERATIONS)
-**Severity:** Medium
-**Category:** Operations - Database
-**Location:** `/backend/alembic/`
-
-**Issue:**
-Database migrations exist but process unclear:
-- 3 migration files present
-- No rollback testing documented
-- Migration execution order not clearly documented
-- Zero-downtime migration strategy not defined
-
-**Recommendation:**
-1. Document migration execution process
-2. Test rollback procedures
-3. Define zero-downtime migration strategy
-4. Add migration review checklist
-5. Document data migration procedures
-6. Create migration monitoring process
-
----
-
-## Low Priority Issues
-
-### L1: Frontend Test Coverage Unknown (TESTING)
-**Severity:** Low
-**Category:** Testing - Frontend
-**Location:** `/frontend/src/`
-
-**Issue:**
-Frontend test status unclear:
-- Test files exist (35 tests in onboarding/profile)
-- 71% pass rate noted in roadmap
-- Coverage metrics not available
-- E2E tests not implemented
-- No visual regression testing
-
-**Recommendation:**
-1. Run frontend test coverage: `npm run test:coverage`
-2. Fix failing tests (25/35 passing currently)
-3. Add E2E tests using Playwright
-4. Implement visual regression testing
-5. Add test coverage reporting to CI/CD
-
----
-
-### L2: Lack of Code Comments in Complex Logic (MAINTAINABILITY)
-**Severity:** Low
-**Category:** Maintainability
-**Location:** Various
-
-**Issue:**
-Complex business logic under-commented:
-- LLM prompt templating logic
-- JWT token generation/verification
-- Rate limiting algorithms
-- Difficulty adaptation algorithms (when implemented)
-
-**Recommendation:**
-1. Add inline comments for complex algorithms
-2. Document business logic decisions
-3. Explain non-obvious code patterns
-4. Add examples in docstrings
-5. Create architecture decision records (ADRs)
-
----
-
-### L3: Missing Dependency Vulnerability Scanning (SECURITY)
-**Severity:** Low
-**Category:** Security - Dependencies
-**Location:** `requirements.txt`, `package.json`
-
-**Issue:**
-No evidence of dependency scanning:
-- Requirements specify scanning (REQ-TEST-SEC-001)
-- No GitHub Dependabot configuration visible
-- No Snyk or similar integration
-- Outdated package detection not automated
-
-**Recommendation:**
-1. Enable GitHub Dependabot
-2. Add dependency scanning to CI/CD
-3. Set up automated PR creation for security updates
-4. Define dependency update policy
-5. Add license compliance checking
-
----
-
-### L4: Inconsistent Naming Conventions (CODE QUALITY)
-**Severity:** Low
-**Category:** Code Quality - Style
-**Location:** Various
-
-**Issue:**
-Minor naming inconsistencies:
-- Mix of `get_` and `fetch_` prefixes
-- Some functions use `validate_`, others `check_`
-- Variable naming mostly consistent but some single-letter variables in loops
-
-**Recommendation:**
-1. Establish naming convention guidelines
-2. Use consistent prefixes:
-   - `get_` for synchronous retrieval
-   - `fetch_` for async retrieval
-   - `validate_` for validation functions
-   - `check_` for boolean checks
-3. Add linting rules to enforce conventions
-4. Refactor inconsistent names in next sprint
-
----
-
-### L5: Missing Performance Benchmarks (PERFORMANCE)
-**Severity:** Low
-**Category:** Performance - Benchmarking
-**Location:** Testing infrastructure
-
-**Issue:**
-No performance benchmarks defined:
-- Requirements specify performance targets
-- No automated performance testing
-- No baseline metrics established
-- No regression detection for performance
-
-**Recommendation:**
-1. Define performance benchmarks for critical paths:
-   - User registration: < 500ms
-   - LLM response: < 5s
-   - Database queries: < 100ms
-2. Implement automated performance tests
-3. Set up performance regression detection
-4. Monitor performance trends over time
-
----
-
-## Positive Patterns
-
-### P1: Excellent Authentication Architecture ✓
-**Category:** Security - Authentication
-
-**Strengths:**
-- JWT-based authentication properly implemented
-- Secure password hashing with bcrypt (12 rounds)
-- Role-based access control (RBAC) well-structured
-- Session validation with Redis
-- OAuth integration architecture sound
-- Password requirements enforce security (12+ chars, complexity)
-
-**Example:**
+**Example (INCONSISTENT):**
 ```python
-class AuthService:
-    PASSWORD_REGEX = re.compile(
-        r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$"
-    )
+# ✅ Good: Uses Pydantic schema
+@exercises_bp.route("/", methods=["POST"])
+@require_auth
+async def create_exercise():
+    data = CreateExerciseRequest(**await request.get_json())  # Validated!
+    exercise = await ExerciseService.create(data)
+    return jsonify(exercise), 201
+
+# ❌ Bad: Manual validation
+@chat_bp.route("/send", methods=["POST"])
+@require_auth
+async def send_message():
+    data = await request.get_json()
+    message = data.get("message")  # No validation!
+    if not message:  # Only checks existence, not length/format
+        return jsonify({"error": "Message required"}), 400
 ```
 
----
-
-### P2: Proper Use of Async/Await ✓
-**Category:** Performance - Async
-
-**Strengths:**
-- Quart framework for async Python
-- Async database operations with asyncpg
-- Async LLM provider implementation
-- Proper async context managers
-- No blocking I/O in async functions
-
-**Example:**
+**How to Avoid:**
 ```python
-@asynccontextmanager
-async def get_async_db_session():
-    async with db_manager.get_async_session() as session:
-        yield session
+# ✅ ALWAYS use Pydantic for request validation
+from pydantic import BaseModel, Field
+
+class SendMessageRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=5000)
+    context_type: Optional[str] = Field(None, regex="^(exercise|general|hint)$")
+
+@chat_bp.route("/send", methods=["POST"])
+@require_auth
+async def send_message():
+    data = SendMessageRequest(**await request.get_json())
+    response = await LLMService.generate_response(data.message, data.context_type)
+    return jsonify(response), 200
+```
+
+**Pydantic Best Practices:**
+- `min_length` and `max_length` on all string fields
+- `regex` for enums/patterns (email, phone, etc.)
+- `conint` for integer ranges (e.g., `conint(ge=0, le=100)`)
+- `conlist` for array length limits
+- Custom validators for complex business logic
+
+**Detection:**
+```bash
+# Find endpoints without Pydantic schemas:
+grep -n "await request.get_json()" backend/src/api/*.py | \
+  grep -v "BaseModel\|Request("
 ```
 
 ---
 
-### P3: Strong Separation of Concerns ✓
-**Category:** Architecture
+## 2. Architecture Anti-Patterns
 
-**Strengths:**
-- Clean layered architecture:
-  - API layer (routes)
-  - Service layer (business logic)
-  - Data layer (models, database)
-  - Middleware layer (cross-cutting concerns)
-- Dependency injection patterns
-- No tight coupling between layers
+### AP-ARCH-001: God Object (Large Service Classes)
 
----
+**What:** Service class with 500+ lines doing too many things  
+**Why It's Bad:** Hard to test, maintain, understand; violates Single Responsibility Principle  
+**Status:** ⚠️ **FOUND** - `ExerciseService` (600+ lines)
 
-### P4: Comprehensive Requirements Documentation ✓
-**Category:** Documentation
+**Example (BAD):**
+```python
+class ExerciseService:
+    """Handles exercise generation, evaluation, hints, difficulty, templates, etc."""
+    
+    def generate_exercise(self):  # 50 lines
+    def evaluate_solution(self):  # 40 lines
+    def generate_hint(self):  # 30 lines
+    def adjust_difficulty(self):  # 40 lines
+    def create_template(self):  # 35 lines
+    def grade_submission(self):  # 50 lines
+    # ... 10 more methods, 600+ lines total
+```
 
-**Strengths:**
-- Detailed requirements.md (2,300+ lines)
-- Clear roadmap with work streams
-- Well-defined user stories
-- Security requirements clearly specified
-- Non-functional requirements documented
+**How to Avoid:**
+```python
+# ✅ Split into focused services (SRP - Single Responsibility Principle)
 
----
+class ExerciseGenerator:
+    """Responsible only for generating new exercises."""
+    def generate_personalized_exercise(self, user_profile):
+        pass
+    def generate_from_template(self, template_id):
+        pass
 
-### P5: Good Use of Type Hints ✓
-**Category:** Code Quality
+class ExerciseEvaluator:
+    """Responsible only for evaluating exercise solutions."""
+    def evaluate_solution(self, exercise_id, solution):
+        pass
+    def calculate_score(self, test_results):
+        pass
 
-**Strengths:**
-- TypeScript for frontend
-- Python type hints used throughout
-- Pydantic for data validation
-- Type safety in critical code paths
+class HintService:
+    """Responsible only for generating hints."""
+    def generate_hint(self, exercise_id, user_attempt):
+        pass
+    def get_progressive_hints(self, exercise_id):
+        pass
 
----
+class DifficultyAdapter:
+    """Responsible only for adaptive difficulty."""
+    def adjust_difficulty(self, user_id, performance_data):
+        pass
+    def recommend_next_difficulty(self, user_id):
+        pass
+```
 
-### P6: No SQL Injection Vulnerabilities ✓
-**Category:** Security
-
-**Strengths:**
-- All database queries use parameterized queries
-- SQLAlchemy ORM used correctly
-- No string concatenation in SQL
-- No f-strings in execute statements
-
----
-
-### P7: Proper Configuration Management (Mostly) ✓
-**Category:** Configuration
-
-**Strengths:**
-- Pydantic settings for type-safe configuration
-- Environment variable based configuration
-- Validation of critical settings at startup
-- Clear separation of dev/prod config
-
-**Note:** Only issue is committed .env file (C2 above)
-
----
-
-## Recommendations
-
-### Immediate Actions (This Sprint)
-
-1. **Security Critical**:
-   - [ ] Rotate JWT secret in production (C1)
-   - [ ] Remove .env from git and rotate all secrets (C2)
-   - [ ] Implement email verification enforcement (C3)
-   - [ ] Add rate limiting to LLM endpoints (H2)
-
-2. **High Priority**:
-   - [ ] Implement CSRF protection (H5)
-   - [ ] Add input validation schemas for all endpoints (H3)
-   - [ ] Set up error tracking (Sentry/Rollbar) (M4)
-
-### Short Term (Next 2 Sprints)
-
-3. **Testing & Quality**:
-   - [ ] Run coverage analysis and reach 80% minimum (M1)
-   - [ ] Fix failing frontend tests (25/35 passing) (L1)
-   - [ ] Implement E2E tests for critical flows (M1)
-
-4. **Performance & Scalability**:
-   - [ ] Add database query optimization (H4)
-   - [ ] Implement caching strategy for LLM responses
-   - [ ] Set up APM monitoring (M4)
-
-5. **Documentation**:
-   - [ ] Configure Swagger/OpenAPI docs (M3)
-   - [ ] Document error handling patterns (H1)
-   - [ ] Create migration runbook (M7)
-
-### Medium Term (Next Quarter)
-
-6. **Infrastructure**:
-   - [ ] Set up secrets management (AWS Secrets Manager/Vault)
-   - [ ] Configure automated dependency scanning (L3)
-   - [ ] Implement zero-downtime deployment strategy
-
-7. **Observability**:
-   - [ ] Add comprehensive logging with correlation IDs (M2)
-   - [ ] Set up alerting and on-call rotation (M4)
-   - [ ] Create monitoring dashboards
-
-### Long Term (Ongoing)
-
-8. **Code Quality**:
-   - [ ] Establish and enforce coding guidelines (L4)
-   - [ ] Add performance benchmarks (L5)
-   - [ ] Implement continuous security scanning
+**Rule of Thumb:**
+- Service class should be <300 lines
+- Class should have one primary responsibility
+- If class name needs "and" or "Manager", consider splitting
 
 ---
 
-## Summary Statistics
+### AP-ARCH-002: Magic Numbers
 
-| Priority | Count | Percentage |
-|----------|-------|------------|
-| Critical | 3 | 13% |
-| High | 5 | 22% |
-| Medium | 7 | 30% |
-| Low | 5 | 22% |
-| Positive | 7 | 30% |
+**What:** Hardcoded values scattered throughout code  
+**Why It's Bad:** Hard to change, inconsistencies, unclear intent  
+**Status:** ⚠️ **FOUND** - Multiple locations
 
-**Total Issues:** 20
-**Positive Patterns:** 7
+**Example (BAD):**
+```python
+# ❌ Magic numbers scattered
+@rate_limit(60, 10)  # What do these numbers mean?
+async def api_endpoint():
+    pass
 
-**Overall Assessment:** The codebase demonstrates strong architectural foundations with excellent authentication security, proper async patterns, and good separation of concerns. However, critical security issues around secrets management and incomplete security feature implementation need immediate attention. Once these are addressed, the codebase quality is solid for an MVP stage project.
+redis_client.setex(key, 3600, value)  # Why 3600?
+if len(password) < 12:  # Why 12?
+```
+
+**How to Avoid:**
+```python
+# ✅ Extract to constants with descriptive names
+
+# config.py or constants.py
+class RateLimits:
+    FREE_TIER_PER_MINUTE = 60
+    FREE_TIER_BURST = 10
+    BASIC_TIER_PER_MINUTE = 120
+    BASIC_TIER_BURST = 20
+
+class CacheTTL:
+    USER_PROFILE = 300  # 5 minutes
+    EXERCISE_TEMPLATE = 3600  # 1 hour
+    LLM_RESPONSE = 7200  # 2 hours
+
+class PasswordPolicy:
+    MIN_LENGTH = 12
+    REQUIRE_UPPERCASE = True
+    REQUIRE_LOWERCASE = True
+    REQUIRE_DIGIT = True
+    REQUIRE_SPECIAL = True
+
+# Usage
+@rate_limit(RateLimits.FREE_TIER_PER_MINUTE, RateLimits.FREE_TIER_BURST)
+async def api_endpoint():
+    pass
+
+redis_client.setex(key, CacheTTL.USER_PROFILE, value)
+if len(password) < PasswordPolicy.MIN_LENGTH:
+    raise APIError("Password too short")
+```
+
+**Common Magic Numbers to Extract:**
+- Rate limits (requests per minute/hour)
+- Cache TTLs (time to live in seconds)
+- Pagination limits (page size, max results)
+- Timeouts (connection, read, write)
+- Retry counts and backoff times
+- Password/validation rules
+- File size limits
+- Connection pool sizes
 
 ---
 
-## Review Metadata
+### AP-ARCH-003: Missing Pagination
 
-**Lines of Code Analyzed:**
-- Backend Python: ~12,892 lines
-- Frontend TypeScript: ~18,621 lines (estimated)
-- Total: ~31,513 lines
+**What:** Endpoints that return all results without pagination  
+**Why It's Bad:** Memory exhaustion, slow responses, poor UX as data grows  
+**Status:** ❌ **FOUND** - `/api/exercises/history`, `/api/progress/history`
 
-**Files Reviewed:** 100+ files
-**Test Files:** 11 backend test files
-**Database Migrations:** 3 migration files
+**Example (BAD):**
+```python
+@exercises_bp.route("/history", methods=["GET"])
+@require_auth
+async def get_exercise_history():
+    # ❌ Returns ALL exercises (could be thousands!)
+    async with get_async_db_session() as session:
+        result = await session.execute(
+            select(UserExercise).where(UserExercise.user_id == g.user_id)
+        )
+        exercises = result.scalars().all()
+        return jsonify([e.to_dict() for e in exercises]), 200
+```
 
-**Review Duration:** Comprehensive automated analysis
-**Review Method:** Systematic code scanning with pattern detection
+**How to Avoid:**
+```python
+# ✅ Implement cursor-based pagination
+from pydantic import BaseModel, Field
+
+class PaginationParams(BaseModel):
+    limit: int = Field(50, ge=1, le=100)  # Max 100 per page
+    offset: int = Field(0, ge=0)
+
+@exercises_bp.route("/history", methods=["GET"])
+@require_auth
+async def get_exercise_history():
+    params = PaginationParams(**request.args)
+    
+    async with get_async_db_session() as session:
+        # Get total count (for pagination metadata)
+        count_result = await session.execute(
+            select(func.count()).select_from(UserExercise)
+            .where(UserExercise.user_id == g.user_id)
+        )
+        total = count_result.scalar()
+        
+        # Get paginated results
+        result = await session.execute(
+            select(UserExercise)
+            .where(UserExercise.user_id == g.user_id)
+            .order_by(UserExercise.created_at.desc())
+            .limit(params.limit)
+            .offset(params.offset)
+        )
+        exercises = result.scalars().all()
+        
+        return jsonify({
+            "data": [e.to_dict() for e in exercises],
+            "pagination": {
+                "total": total,
+                "limit": params.limit,
+                "offset": params.offset,
+                "has_next": (params.offset + params.limit) < total
+            }
+        }), 200
+```
+
+**Pagination Checklist:**
+- [ ] All list endpoints have pagination
+- [ ] Default limit (e.g., 50 items)
+- [ ] Maximum limit enforced (e.g., 100 items)
+- [ ] Return total count for UI pagination
+- [ ] Return `has_next` flag for infinite scroll
+- [ ] Sort by a stable field (id, created_at) for consistent ordering
 
 ---
 
-**Document Changelog:**
+### AP-ARCH-004: Dual Database Engines (RESOLVED ✅)
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2025-12-06 | Initial comprehensive review |
+**What:** Creating both sync and async database engines  
+**Why It's Bad:** Double connection pool usage, wasted resources  
+**Status:** ✅ **RESOLVED** - DB-OPT work stream removed sync engine
+
+**Example (BAD - OLD):**
+```python
+class DatabaseManager:
+    def __init__(self):
+        # ❌ Both engines created (40 connections total!)
+        self._sync_engine = create_engine(database_url)  # 20 connections
+        self._async_engine = create_async_engine(async_url)  # 20 connections
+```
+
+**How to Avoid (CURRENT):**
+```python
+class DatabaseManager:
+    def __init__(self):
+        # ✅ Only async engine (20 connections)
+        self._async_engine = create_async_engine(async_url)
+        
+# For migrations (Alembic), use separate sync engine:
+def get_sync_engine_for_migrations(database_url):
+    """Create sync engine ONLY for migrations."""
+    return create_engine(database_url, pool_size=5)
+```
+
+**Key Rule:** In async applications, use async engines only. Create sync engines only when absolutely necessary (migrations) with small pool sizes.
 
 ---
 
-**Next Review Scheduled:** 2025-12-20 (or after major feature additions)
+### AP-ARCH-005: No Error Codes
+
+**What:** Error responses only have messages, no machine-readable codes  
+**Why It's Bad:** Frontend can't distinguish error types, difficult to handle programmatically  
+**Status:** ⚠️ **FOUND** - Most errors lack error codes
+
+**Example (BAD):**
+```python
+return jsonify({"error": "Authentication failed"}), 401
+# Frontend can't tell if it's wrong password vs expired token vs invalid format
+```
+
+**How to Avoid:**
+```python
+# ✅ Add error codes
+class ErrorCode:
+    AUTH_INVALID_CREDENTIALS = "AUTH_001"
+    AUTH_TOKEN_EXPIRED = "AUTH_002"
+    AUTH_TOKEN_INVALID = "AUTH_003"
+    AUTH_EMAIL_NOT_VERIFIED = "AUTH_004"
+    
+    DB_CONNECTION_FAILED = "DB_001"
+    DB_CONSTRAINT_VIOLATION = "DB_002"
+    
+    LLM_API_ERROR = "LLM_001"
+    LLM_RATE_LIMIT = "LLM_002"
+    LLM_QUOTA_EXCEEDED = "LLM_003"
+
+return jsonify({
+    "error": "Authentication failed",
+    "error_code": ErrorCode.AUTH_INVALID_CREDENTIALS,
+    "details": "Invalid email or password"
+}), 401
+
+# Frontend can now handle specific errors:
+if (error.error_code === "AUTH_002") {
+    // Token expired -> refresh token flow
+} else if (error.error_code === "AUTH_001") {
+    // Invalid credentials -> show error message
+}
+```
+
+---
+
+## 3. Performance Anti-Patterns
+
+### AP-PERF-001: N+1 Query Problem
+
+**What:** Loading related data in a loop instead of eager loading  
+**Why It's Bad:** 1 query becomes N+1 queries, slow response times  
+**Status:** ⚠️ **RISK** - No explicit eager loading configured
+
+**Example (BAD):**
+```python
+# ❌ N+1 queries (1 + 100 = 101 queries for 100 exercises)
+exercises = await session.execute(
+    select(Exercise).where(Exercise.user_id == user_id)
+)
+for exercise in exercises.scalars():
+    # This triggers a separate query for EACH exercise!
+    hints = await exercise.hints
+```
+
+**How to Avoid:**
+```python
+# ✅ Eager loading with selectinload (2 queries total)
+from sqlalchemy.orm import selectinload
+
+exercises_result = await session.execute(
+    select(Exercise)
+    .where(Exercise.user_id == user_id)
+    .options(selectinload(Exercise.hints))  # Load hints in single query
+)
+exercises = exercises_result.scalars().all()
+
+for exercise in exercises:
+    hints = exercise.hints  # Already loaded, no query!
+```
+
+**Eager Loading Strategies:**
+- `selectinload()` - Separate IN query (good for one-to-many)
+- `joinedload()` - JOIN query (good for one-to-one)
+- `subqueryload()` - Subquery (legacy, rarely needed)
+
+---
+
+### AP-PERF-002: Missing Database Indexes
+
+**What:** Queries on columns without indexes  
+**Why It's Bad:** Full table scans, slow queries as data grows  
+**Status:** ✅ **RESOLVED** - DB-OPT work stream added indexes
+
+**Indexes Added (GOOD):**
+```sql
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_is_active ON users(is_active);
+CREATE INDEX idx_exercises_difficulty ON exercises(difficulty);
+CREATE INDEX idx_user_exercises_user_created ON user_exercises(user_id, created_at);
+```
+
+**Checklist for New Tables:**
+- [ ] Index on foreign keys (user_id, exercise_id, etc.)
+- [ ] Index on frequently queried fields (status, role, is_active)
+- [ ] Composite index on WHERE + ORDER BY combinations
+- [ ] Index on date fields used for filtering/sorting
+
+**Don't Over-Index:**
+- Avoid indexing low-cardinality fields (e.g., boolean with only true/false)
+- Each index slows down writes (INSERT, UPDATE, DELETE)
+- Rule of thumb: 3-5 indexes per table, not 10+
+
+---
+
+### AP-PERF-003: No Query Result Caching
+
+**What:** Every request hits database even for static/infrequently changing data  
+**Why It's Bad:** Unnecessary database load, slow response times  
+**Status:** ⚠️ **FOUND** - No query caching implemented
+
+**Example (BAD):**
+```python
+@users_bp.route("/profile", methods=["GET"])
+@require_auth
+async def get_profile():
+    # ❌ Hits database every time, even though profile rarely changes
+    async with get_async_db_session() as session:
+        user = await session.get(User, g.user_id)
+        return jsonify(user.to_dict()), 200
+```
+
+**How to Avoid:**
+```python
+from src.utils.redis_client import get_redis
+
+@users_bp.route("/profile", methods=["GET"])
+@require_auth
+async def get_profile():
+    redis_client = get_redis()
+    cache_key = f"user_profile:{g.user_id}"
+    
+    # ✅ Try cache first
+    cached = await redis_client.get_cache(cache_key)
+    if cached:
+        return jsonify(cached), 200
+    
+    # Cache miss -> query database
+    async with get_async_db_session() as session:
+        user = await session.get(User, g.user_id)
+        profile_data = user.to_dict()
+        
+        # Store in cache (TTL: 5 minutes)
+        await redis_client.set_cache(cache_key, profile_data, ttl=300)
+        
+        return jsonify(profile_data), 200
+```
+
+**Data to Cache:**
+- User profiles (TTL: 5 minutes)
+- Exercise templates (TTL: 1 hour)
+- Achievement definitions (TTL: 24 hours)
+- LLM responses for common queries (TTL: 2 hours)
+- Progress calculations (TTL: 1 minute)
+
+**Cache Invalidation:**
+- Update profile -> invalidate `user_profile:{user_id}`
+- Create exercise -> invalidate user exercise history cache
+- Use cache tags or patterns for bulk invalidation
+
+---
+
+### AP-PERF-004: Synchronous LLM Calls Blocking Request Thread
+
+**What:** LLM API calls block request thread for 3-5 seconds  
+**Why It's Bad:** Poor UX, server thread starvation under load  
+**Status:** ⚠️ **FOUND** - No streaming implemented
+
+**Example (BAD):**
+```python
+@chat_bp.route("/send", methods=["POST"])
+@require_auth
+async def send_message():
+    message = data["message"]
+    # ❌ Blocks for 3-5 seconds waiting for LLM response
+    response = await LLMService.generate_response(message)
+    return jsonify({"response": response}), 200
+```
+
+**How to Avoid (Option 1: Streaming):**
+```python
+from quart import Response
+
+@chat_bp.route("/send", methods=["POST"])
+@require_auth
+async def send_message_stream():
+    message = data["message"]
+    
+    async def generate():
+        # ✅ Stream LLM response token by token (SSE)
+        async for token in LLMService.stream_response(message):
+            yield f"data: {json.dumps({'token': token})}\n\n"
+        yield "data: [DONE]\n\n"
+    
+    return Response(generate(), mimetype="text/event-stream")
+```
+
+**How to Avoid (Option 2: Background Jobs):**
+```python
+from celery import Celery
+
+@chat_bp.route("/send", methods=["POST"])
+@require_auth
+async def send_message_async():
+    message = data["message"]
+    
+    # ✅ Queue LLM call in background, return task ID
+    task = generate_llm_response.delay(g.user_id, message)
+    
+    return jsonify({
+        "task_id": task.id,
+        "status": "processing"
+    }), 202  # Accepted
+
+# Frontend polls /task/{task_id} for result
+```
+
+---
+
+## 4. Testing Anti-Patterns
+
+### AP-TEST-001: Mocking Too Much
+
+**What:** Mocking entire database or all external dependencies  
+**Why It's Bad:** Tests pass but integration bugs still happen in production  
+**Status:** ⚠️ **FOUND** - Some tests mock entire database
+
+**Example (BAD):**
+```python
+def test_create_exercise():
+    # ❌ Mocks everything - doesn't test real database interactions
+    with patch('src.utils.database.get_async_db_session'):
+        with patch('src.services.exercise_service.ExerciseService.create'):
+            # Test passes but doesn't catch DB constraint violations!
+```
+
+**How to Avoid:**
+```python
+@pytest.mark.asyncio
+async def test_create_exercise(test_db):
+    # ✅ Use real test database (in-memory SQLite or dedicated test PostgreSQL)
+    async with get_async_db_session() as session:
+        exercise = await ExerciseService.create(
+            user_id=1,
+            title="Test Exercise",
+            description="Test Description"
+        )
+        
+        # Verify in database (real integration test)
+        result = await session.get(Exercise, exercise.id)
+        assert result.title == "Test Exercise"
+```
+
+**When to Mock:**
+- ✅ External APIs (LLM, GitHub, email services)
+- ✅ Time/date functions (for deterministic tests)
+- ✅ Random number generators (for deterministic tests)
+- ❌ Database (use test database instead)
+- ❌ Redis (use test Redis instance or fakeredis)
+- ❌ Internal services (test real integration)
+
+---
+
+### AP-TEST-002: No E2E Tests
+
+**What:** Only unit tests, no full user journey tests  
+**Why It's Bad:** Integration bugs, broken user flows not caught  
+**Status:** ❌ **FOUND** - No E2E tests exist
+
+**How to Avoid:**
+```typescript
+// ✅ Playwright E2E test
+import { test, expect } from '@playwright/test';
+
+test('user registration to first exercise flow', async ({ page }) => {
+    // Navigate to registration
+    await page.goto('http://localhost:3000/register');
+    
+    // Fill registration form
+    await page.fill('input[name="email"]', 'test@example.com');
+    await page.fill('input[name="password"]', 'SecureP@ss123');
+    await page.click('button[type="submit"]');
+    
+    // Verify email verification page
+    await expect(page).toHaveURL(/.*verify-email.*/);
+    
+    // Simulate email verification (backend API call)
+    // Mock or use test email verification token
+    await page.goto('http://localhost:3000/verify?token=test-token');
+    
+    // Complete onboarding
+    await page.fill('select[name="language"]', 'Python');
+    await page.fill('select[name="level"]', 'Intermediate');
+    await page.click('button[type="submit"]');
+    
+    // Verify first exercise is shown
+    await expect(page.locator('h1')).toContainText('Daily Exercise');
+});
+```
+
+**Critical E2E Flows to Test:**
+1. Registration → Email verification → Onboarding → First exercise
+2. Login → Chat with tutor → Request hint
+3. Exercise submission → Progress update → Achievement unlock
+4. OAuth login (GitHub/Google)
+5. Password reset flow
+6. Profile update
+7. Subscription upgrade (when payments implemented)
+
+---
+
+## 5. Frontend Anti-Patterns
+
+### AP-UI-001: Props Drilling
+
+**What:** Passing props through multiple component levels  
+**Why It's Bad:** Hard to maintain, refactor, and understand  
+**Status:** ⚠️ **FOUND** - Some components pass props 3+ levels deep
+
+**Example (BAD):**
+```typescript
+// ❌ Props drilling
+<Dashboard user={user}>
+  <Sidebar user={user}>
+    <UserProfile user={user}>
+      <UserAvatar user={user} />  // 4 levels deep!
+```
+
+**How to Avoid:**
+```typescript
+// ✅ Use Redux for global state
+// Store user in Redux store, access directly in any component
+
+// UserAvatar.tsx
+import { useAppSelector } from '../../store/hooks';
+
+function UserAvatar() {
+    const user = useAppSelector(state => state.auth.user);
+    return <img src={user.avatar} alt={user.name} />;
+}
+
+// No props drilling needed!
+```
+
+---
+
+### AP-UI-002: No Structured Logging in Frontend
+
+**What:** Using console.log instead of structured logging  
+**Why It's Bad:** Can't track errors in production, no context  
+**Status:** ⚠️ **FOUND** - Frontend uses console.log
+
+**Example (BAD):**
+```typescript
+console.log("User logged in");  // ❌ Lost in production
+```
+
+**How to Avoid:**
+```typescript
+// ✅ Use Sentry or LogRocket
+import * as Sentry from "@sentry/react";
+
+Sentry.captureMessage("User logged in", {
+    level: "info",
+    user: { id: user.id, email: user.email },
+    tags: { environment: "production" }
+});
+
+// Errors automatically captured:
+Sentry.captureException(error);
+```
+
+---
+
+## 6. Deployment Anti-Patterns
+
+### AP-DEPLOY-001: No Production Config Validation
+
+**What:** Starting production server without validating environment variables  
+**Why It's Bad:** Runtime failures, security issues (weak secrets)  
+**Status:** ✅ **RESOLVED** - SEC-2 work stream added validation
+
+**Current Implementation (GOOD):**
+```python
+@model_validator(mode='after')
+def validate_production_config(self) -> 'Settings':
+    if self.app_env != "production":
+        return self
+    
+    # ✅ Validates in production:
+    # - Secrets strength (32+ chars)
+    # - No dev secret patterns ("changeme", "password", "test")
+    # - HTTPS URLs required
+    # - Database URL format (PostgreSQL)
+    # - Redis URL format
+    # - LLM API keys present
+    
+    if not self.frontend_url.startswith("https://"):
+        raise ValueError("FRONTEND_URL must use HTTPS in production")
+```
+
+**Checklist for Production:**
+- [ ] All required env vars present
+- [ ] Secrets meet strength requirements
+- [ ] No development secrets in production
+- [ ] HTTPS enforced
+- [ ] Database URL valid
+- [ ] API keys present for third-party services
+
+---
+
+## 7. Code Review Checklist
+
+Use this checklist during code reviews to catch anti-patterns:
+
+### Security Review:
+- [ ] No secrets committed to git
+- [ ] All security decorators fully implemented (no placeholders)
+- [ ] Input validation with Pydantic schemas
+- [ ] Rate limiting on expensive endpoints
+- [ ] Authentication required on protected routes
+- [ ] Authorization checks for resource access
+- [ ] SQL injection protection (parameterized queries)
+- [ ] XSS protection (output encoding)
+- [ ] CSRF protection (SameSite cookies + custom headers)
+
+### Architecture Review:
+- [ ] No God objects (service classes <300 lines)
+- [ ] No magic numbers (constants extracted)
+- [ ] Pagination on list endpoints
+- [ ] Error codes for all error responses
+- [ ] Async/await used correctly
+- [ ] No blocking I/O in request handlers
+- [ ] Proper separation of concerns (API → Service → Data)
+
+### Performance Review:
+- [ ] Database indexes on foreign keys and query fields
+- [ ] No N+1 queries (eager loading configured)
+- [ ] Query result caching for static data
+- [ ] Pagination implemented (default limit, max limit)
+- [ ] Streaming for long-running operations (LLM, file uploads)
+- [ ] Connection pooling configured
+
+### Testing Review:
+- [ ] Tests written (TDD preferred)
+- [ ] Integration tests for new features
+- [ ] E2E test for critical user journeys
+- [ ] Mock only external APIs (not database/internal services)
+- [ ] Test coverage >80% for new code
+
+### Documentation Review:
+- [ ] Docstrings on public functions
+- [ ] Type hints on function signatures
+- [ ] README updated for new features
+- [ ] OpenAPI schema updated
+- [ ] Deployment docs updated if needed
+
+---
+
+## 8. Monitoring Anti-Pattern Detection
+
+Set up automated checks to detect anti-patterns:
+
+```bash
+# Secrets in git
+git ls-files | grep -E "\.env$|\.env\..+" | grep -v "\.env\.example"
+
+# Magic numbers
+rg '\b(60|300|3600|86400)\b' --type py | grep -v "test_" | grep -v "# TTL:"
+
+# Missing pagination
+rg "\.all\(\)" backend/src/api/ | grep "select("
+
+# N+1 query risk
+rg "for .* in .*\.scalars\(\)" backend/src/
+
+# Missing rate limiting
+rg "@.*_bp\.route" backend/src/api/ | xargs rg -l "@require_auth" | \
+  xargs rg -L "@rate_limit"
+
+# Console.log in frontend
+rg "console\.(log|debug|info)" frontend/src/ | grep -v "\.test\."
+```
+
+---
+
+## 9. Prevention Strategy
+
+**Development Phase:**
+1. Review this checklist before starting new features
+2. Use code templates that follow best practices
+3. Run automated checks in pre-commit hooks
+4. Pair programming for critical features
+
+**Code Review Phase:**
+1. Reviewer uses section 7 checklist
+2. Automated tools run (linters, security scanners)
+3. At least one approval required
+4. CI/CD tests must pass
+
+**Deployment Phase:**
+1. Config validation in staging
+2. Security scan before production deployment
+3. Load testing for performance-critical features
+4. Rollback plan documented
+
+---
+
+**End of Checklist**  
+**Last Updated:** 2025-12-06  
+**Next Review:** After each major feature completion
