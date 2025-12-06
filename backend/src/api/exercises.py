@@ -8,10 +8,15 @@ from src.logging_config import get_logger
 from src.middleware.error_handler import APIError
 from src.middleware.auth_middleware import require_auth, get_current_user_id
 from src.services.exercise_service import ExerciseService
+from src.services.difficulty_service import DifficultyService
 from src.schemas.exercise import (
     ExerciseSubmissionRequest,
     HintRequest,
     ExerciseGenerateRequest
+)
+from src.schemas.difficulty import (
+    DifficultyAdjustmentRequest,
+    PerformanceAnalysisRequest
 )
 from src.utils.database import get_async_db_session as get_session
 
@@ -419,3 +424,242 @@ async def generate_exercise() -> Dict[str, Any]:
     except Exception as error:
         logger.error("Error generating exercise", extra={"error": str(error), "user_id": user_id})
         raise APIError(f"Failed to generate exercise: {str(error)}", status_code=500)
+
+
+# ===================================================================
+# DIFFICULTY ADAPTATION ENDPOINTS (Work Stream D3)
+# ===================================================================
+
+@exercises_bp.route("/difficulty/analyze", methods=["GET"])
+@require_auth
+async def analyze_difficulty() -> Dict[str, Any]:
+    """
+    Analyze user's recent performance and get difficulty adjustment recommendation.
+
+    Implements REQ-EXERCISE-003: Adaptive difficulty adjustment.
+
+    Headers:
+        Authorization: Bearer <access_token>
+
+    Query Parameters:
+        limit: Number of recent exercises to analyze (default: 10)
+
+    Returns:
+        JSON response with difficulty adjustment recommendation
+        {
+            "user_id": 123,
+            "should_adjust": true,
+            "current_difficulty": "medium",
+            "recommended_difficulty": "hard",
+            "reason": "increase",
+            "message": "Great job! You've successfully completed 3 exercises...",
+            "consecutive_successes": 3,
+            "consecutive_struggles": 0,
+            "performance_metrics": {...}
+        }
+    """
+    try:
+        user_id = get_current_user_id()
+        limit = int(request.args.get("limit", 10))
+
+        async with get_session() as session:
+            difficulty_service = DifficultyService(session)
+
+            # Analyze performance and get recommendation
+            result = await difficulty_service.analyze_and_adjust_difficulty(user_id)
+
+            # Serialize response
+            response = {
+                "user_id": result.user_id,
+                "should_adjust": result.should_adjust,
+                "current_difficulty": result.current_difficulty.value if result.current_difficulty else None,
+                "recommended_difficulty": result.recommended_difficulty.value if result.recommended_difficulty else None,
+                "reason": result.reason,
+                "message": result.message,
+                "consecutive_successes": result.consecutive_successes,
+                "consecutive_struggles": result.consecutive_struggles,
+            }
+
+            # Include performance metrics if requested
+            if result.performance_metrics:
+                response["performance_metrics"] = {
+                    "total_exercises_analyzed": result.performance_metrics.total_exercises_analyzed,
+                    "average_grade": result.performance_metrics.average_grade,
+                    "average_hints": result.performance_metrics.average_hints,
+                    "completion_rate": result.performance_metrics.completion_rate,
+                }
+
+            return jsonify(response), 200
+
+    except Exception as error:
+        logger.error("Error analyzing difficulty", extra={"error": str(error), "user_id": user_id})
+        raise APIError(f"Failed to analyze difficulty: {str(error)}", status_code=500)
+
+
+@exercises_bp.route("/difficulty/adjust", methods=["POST"])
+@require_auth
+async def adjust_difficulty() -> Dict[str, Any]:
+    """
+    Apply a difficulty adjustment (manual or automatic).
+
+    Allows users to manually override their difficulty level.
+
+    Headers:
+        Authorization: Bearer <access_token>
+
+    Request Body:
+        {
+            "difficulty": "hard",
+            "reason": "I want more challenging exercises"
+        }
+
+    Returns:
+        JSON response confirming adjustment
+        {
+            "message": "Difficulty adjusted successfully",
+            "user_id": 123,
+            "new_difficulty": "hard",
+            "notification": {...}
+        }
+    """
+    try:
+        user_id = get_current_user_id()
+
+        # Get request data
+        data = await request.get_json()
+        if not data or "difficulty" not in data:
+            raise APIError("Difficulty field is required", status_code=400)
+
+        difficulty_str = data.get("difficulty")
+        reason = data.get("reason")
+
+        # Convert difficulty string to enum
+        from src.models.exercise import ExerciseDifficulty
+        try:
+            new_difficulty = ExerciseDifficulty(difficulty_str)
+        except ValueError:
+            raise APIError(
+                f"Invalid difficulty: {difficulty_str}. Must be 'easy', 'medium', or 'hard'",
+                status_code=400
+            )
+
+        async with get_session() as session:
+            difficulty_service = DifficultyService(session)
+
+            # Apply manual difficulty adjustment
+            success = await difficulty_service.set_manual_difficulty(
+                user_id=user_id,
+                difficulty=new_difficulty,
+                reason=reason
+            )
+
+            if not success:
+                raise APIError("Failed to apply difficulty adjustment", status_code=500)
+
+            # Create notification about the change
+            # For manual changes, we need to get the previous difficulty
+            metrics = await difficulty_service.get_recent_performance(user_id, limit=1)
+            previous_difficulty = metrics.current_difficulty or ExerciseDifficulty.MEDIUM
+
+            notification = await difficulty_service.create_difficulty_change_notification(
+                user_id=user_id,
+                previous_difficulty=previous_difficulty,
+                new_difficulty=new_difficulty
+            )
+
+            return jsonify({
+                "message": "Difficulty adjusted successfully",
+                "user_id": user_id,
+                "new_difficulty": new_difficulty.value,
+                "notification": {
+                    "message": notification.message,
+                    "change_type": notification.change_type,
+                    "reason": notification.reason,
+                }
+            }), 200
+
+    except ValueError as error:
+        raise APIError(str(error), status_code=400)
+    except Exception as error:
+        logger.error("Error adjusting difficulty", extra={
+            "error": str(error),
+            "user_id": user_id
+        })
+        raise APIError(f"Failed to adjust difficulty: {str(error)}", status_code=500)
+
+
+@exercises_bp.route("/difficulty/performance", methods=["GET"])
+@require_auth
+async def get_performance_metrics() -> Dict[str, Any]:
+    """
+    Get detailed performance metrics for the authenticated user.
+
+    Implements REQ-EXERCISE-004: Exercise completion metrics tracking.
+
+    Headers:
+        Authorization: Bearer <access_token>
+
+    Query Parameters:
+        limit: Number of recent exercises to include (default: 10, max: 50)
+
+    Returns:
+        JSON response with detailed performance metrics
+        {
+            "user_id": 123,
+            "total_exercises_analyzed": 10,
+            "average_grade": 85.5,
+            "average_hints": 1.2,
+            "average_time_seconds": 720,
+            "completion_rate": 90.0,
+            "consecutive_successes": 3,
+            "consecutive_struggles": 0,
+            "current_difficulty": "medium",
+            "recent_exercises": [...]
+        }
+    """
+    try:
+        user_id = get_current_user_id()
+        limit = min(int(request.args.get("limit", 10)), 50)
+
+        async with get_session() as session:
+            difficulty_service = DifficultyService(session)
+
+            # Get performance metrics
+            metrics = await difficulty_service.get_recent_performance(user_id, limit=limit)
+
+            # Serialize recent exercises
+            recent_exercises = [
+                {
+                    "exercise_id": ex.exercise_id,
+                    "difficulty": ex.difficulty.value,
+                    "status": ex.status.value,
+                    "grade": ex.grade,
+                    "hints_requested": ex.hints_requested,
+                    "time_spent_seconds": ex.time_spent_seconds,
+                    "completed_at": ex.completed_at.isoformat() if ex.completed_at else None,
+                    "is_success": ex.is_success,
+                    "is_struggle": ex.is_struggle,
+                }
+                for ex in metrics.recent_exercises
+            ]
+
+            return jsonify({
+                "user_id": metrics.user_id,
+                "total_exercises_analyzed": metrics.total_exercises_analyzed,
+                "average_grade": metrics.average_grade,
+                "average_hints": metrics.average_hints,
+                "average_time_seconds": metrics.average_time_seconds,
+                "completion_rate": metrics.completion_rate,
+                "consecutive_successes": metrics.consecutive_successes,
+                "consecutive_struggles": metrics.consecutive_struggles,
+                "current_difficulty": metrics.current_difficulty.value if metrics.current_difficulty else None,
+                "days_since_last_exercise": metrics.days_since_last_exercise,
+                "recent_exercises": recent_exercises,
+            }), 200
+
+    except Exception as error:
+        logger.error("Error getting performance metrics", extra={
+            "error": str(error),
+            "user_id": user_id
+        })
+        raise APIError(f"Failed to get performance metrics: {str(error)}", status_code=500)
