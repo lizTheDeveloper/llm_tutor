@@ -43,8 +43,9 @@ def event_loop():
 @pytest.fixture(scope="function")
 async def test_engine():
     """
-    Create test database engine for the entire test session.
-    Runs Alembic migrations to ensure test DB matches production schema.
+    Create test database engine for tests.
+    Function scope to ensure clean state, but tables are NOT dropped/recreated each time.
+    Instead, transactions rollback to keep tests isolated while reusing tables.
     """
     engine = create_async_engine(
         TEST_DATABASE_URL,
@@ -52,28 +53,10 @@ async def test_engine():
         poolclass=NullPool,
     )
 
-    # Run Alembic migrations to create tables and indexes
-    # This ensures test DB has the same schema as production
-    from alembic.config import Config
-    from alembic import command
-    import tempfile
-    import os as os_module
-
-    # Get alembic directory
-    backend_dir = Path(__file__).parent.parent
-    alembic_dir = backend_dir / "alembic"
-    alembic_ini = backend_dir / "alembic.ini"
-
-    # Create alembic config
-    alembic_cfg = Config(str(alembic_ini))
-    alembic_cfg.set_main_option("script_location", str(alembic_dir))
-    alembic_cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
-
-    # Ensure all tables exist (run migrations to head)
-    # This creates tables with all indexes from migrations
+    # Create tables once - checkfirst=True skips if already exist
+    # This dramatically improves test performance
     async with engine.begin() as conn:
         # Skip tables that require pgvector extension in test environment
-        # interaction_logs, user_memory updates will be tested when pgvector is installed
         from src.models.interaction_log import InteractionLog
         from src.models.user_memory import UserMemory
 
@@ -83,35 +66,18 @@ async def test_engine():
             if table.name not in ['interaction_logs']  # Skip pgvector-dependent tables
         ]
 
-        # Create tables without pgvector dependencies
+        # Create tables - checkfirst=True makes this idempotent
         for table in tables_to_create:
             try:
-                await conn.run_sync(lambda sync_conn: table.create(sync_conn, checkfirst=True))
+                await conn.run_sync(lambda sync_conn, t=table: t.create(sync_conn, checkfirst=True))
             except Exception as e:
                 # Log but don't fail - table might already exist
                 print(f"[TEST] Info: Table {table.name} creation: {e}")
 
-    # Note: Alembic migrations are sync-only, but they're idempotent
-    # So we can run them in a separate thread if needed for async tests
-    # For now, we'll use create_all which is sufficient for tests
-    # TODO: Run actual alembic migrations asynchronously if needed
-
     yield engine
 
-    # Drop all tables after all tests complete
-    async with engine.begin() as conn:
-        # Drop tables in reverse order
-        tables_to_drop = [
-            table for table in reversed(Base.metadata.sorted_tables)
-            if table.name not in ['interaction_logs']
-        ]
-
-        for table in tables_to_drop:
-            try:
-                await conn.run_sync(lambda sync_conn: table.drop(sync_conn, checkfirst=True))
-            except Exception:
-                pass  # Ignore errors during cleanup
-
+    # No teardown - tables persist between tests for performance
+    # Tests use transactions that rollback, so data is isolated
     await engine.dispose()
 
 
@@ -135,12 +101,13 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
             # Transaction is automatically rolled back after test
 
 
-@pytest.fixture(autouse=True)
-async def clear_rate_limits(app):
+@pytest.fixture
+async def clear_rate_limits():
     """
     Clear rate limit data in Redis before each test.
     This prevents rate limiting issues when running multiple tests.
-    Depends on app fixture to ensure Redis is initialized.
+    NOT autouse - only used by tests that need rate limiting cleared.
+    This significantly improves test performance by not initializing Redis for every test.
     """
     from src.utils.redis_client import get_redis
 
