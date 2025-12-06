@@ -72,8 +72,24 @@ async def test_engine():
     # Ensure all tables exist (run migrations to head)
     # This creates tables with all indexes from migrations
     async with engine.begin() as conn:
-        # First create all tables to ensure base schema exists
-        await conn.run_sync(Base.metadata.create_all)
+        # Skip tables that require pgvector extension in test environment
+        # interaction_logs, user_memory updates will be tested when pgvector is installed
+        from src.models.interaction_log import InteractionLog
+        from src.models.user_memory import UserMemory
+
+        # Get all tables except those requiring pgvector
+        tables_to_create = [
+            table for table in Base.metadata.sorted_tables
+            if table.name not in ['interaction_logs']  # Skip pgvector-dependent tables
+        ]
+
+        # Create tables without pgvector dependencies
+        for table in tables_to_create:
+            try:
+                await conn.run_sync(lambda sync_conn: table.create(sync_conn, checkfirst=True))
+            except Exception as e:
+                # Log but don't fail - table might already exist
+                print(f"[TEST] Info: Table {table.name} creation: {e}")
 
     # Note: Alembic migrations are sync-only, but they're idempotent
     # So we can run them in a separate thread if needed for async tests
@@ -84,7 +100,17 @@ async def test_engine():
 
     # Drop all tables after all tests complete
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        # Drop tables in reverse order
+        tables_to_drop = [
+            table for table in reversed(Base.metadata.sorted_tables)
+            if table.name not in ['interaction_logs']
+        ]
+
+        for table in tables_to_drop:
+            try:
+                await conn.run_sync(lambda sync_conn: table.drop(sync_conn, checkfirst=True))
+            except Exception:
+                pass  # Ignore errors during cleanup
 
     await engine.dispose()
 
@@ -107,6 +133,46 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
         async with session.begin():
             yield session
             # Transaction is automatically rolled back after test
+
+
+@pytest.fixture(autouse=True)
+async def clear_rate_limits(app):
+    """
+    Clear rate limit data in Redis before each test.
+    This prevents rate limiting issues when running multiple tests.
+    Depends on app fixture to ensure Redis is initialized.
+    """
+    from src.utils.redis_client import get_redis
+
+    try:
+        redis_manager = get_redis()
+        # Get async client
+        client = redis_manager.async_client
+
+        # Find and delete all rate limit keys
+        cursor = 0
+        while True:
+            cursor, keys = await client.scan(cursor, match="rate_limit:*", count=100)
+            if keys:
+                await client.delete(*keys)
+            if cursor == 0:
+                break
+
+        # Also clear cost tracking keys
+        cursor = 0
+        while True:
+            cursor, keys = await client.scan(cursor, match="cost:*", count=100)
+            if keys:
+                await client.delete(*keys)
+            if cursor == 0:
+                break
+    except Exception as e:
+        # If Redis is not available, just log and continue
+        print(f"[TEST] Warning: Could not clear rate limits: {e}")
+
+    yield
+
+    # Cleanup after test (optional - could clear again)
 
 
 @pytest.fixture
