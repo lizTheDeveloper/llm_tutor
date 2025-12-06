@@ -1,8 +1,8 @@
 # LLM Coding Tutor Platform - Active Roadmap
 
-## Document Version: 1.12
+## Document Version: 1.13
 ## Date: 2025-12-06
-## Status: Stage 3 - COMPLETE (All work streams C1-C5 delivered)
+## Status: Stage 3 - COMPLETE (All work streams C1-C5 delivered) | Stage 4 - IN PROGRESS (D1 ~70%)
 
 ---
 
@@ -301,36 +301,61 @@
 #### Work Stream D1: Exercise Generation & Management Backend
 **Agent**: TDD Workflow Engineer (tdd-workflow-engineer)
 **Dependencies**: None (B2 LLM Integration, B3 Database Schema, C2 User Memory complete)
-**Status**: IN PROGRESS
+**Status**: 🟡 IN PROGRESS (~70% complete)
 **Claimed**: 2025-12-06
+**Last Updated**: 2025-12-06
 **Parallel With**: D2, D3, D4
 
 **Tasks:**
-- [ ] Exercise database schema and models
-- [ ] Exercise template system
-- [ ] Daily exercise generation endpoint (POST /api/exercises/daily)
-- [ ] Exercise retrieval endpoint (GET /api/exercises/{exercise_id})
-- [ ] Exercise list endpoint (GET /api/exercises)
-- [ ] Exercise submission endpoint (POST /api/exercises/{exercise_id}/submit)
-- [ ] Hint request endpoint (POST /api/exercises/{exercise_id}/hint)
-- [ ] LLM integration for exercise generation
-- [ ] Personalization based on user profile and memory
-- [ ] Multi-language support (Python, JavaScript, Java, etc.)
-- [ ] Exercise type variety (algorithms, debugging, practical apps)
-- [ ] Validation and error handling
+- [x] Exercise database schema and models (Exercise, UserExercise models)
+- [x] Exercise template system (Pydantic schemas - 11 schemas, 220 lines)
+- [x] TDD test suite (25 integration tests, 680 lines)
+- [x] Service layer business logic (ExerciseService - 600+ lines)
+- [ ] Daily exercise generation endpoint (POST /api/exercises/daily) - SERVICE READY
+- [ ] Exercise retrieval endpoint (GET /api/exercises/{exercise_id}) - SERVICE READY
+- [ ] Exercise list endpoint (GET /api/exercises) - SERVICE READY
+- [ ] Exercise submission endpoint (POST /api/exercises/{exercise_id}/submit) - SERVICE READY
+- [ ] Hint request endpoint (POST /api/exercises/{exercise_id}/hint) - SERVICE READY
+- [ ] LLM integration methods (generate_exercise, generate_hint, evaluate_submission)
+- [x] Personalization based on user profile and memory (implemented in service)
+- [x] Multi-language support (Python, JavaScript, Java, etc.)
+- [x] Exercise type variety (algorithms, debugging, practical apps)
+- [x] Validation and error handling (Pydantic schemas)
+- [ ] Fix test environment and verify all tests pass
+- [ ] Wire service layer to API endpoints
 
 **Deliverable**: Exercise generation and management API
 
 **Effort**: L
 
 **Done When**:
-- [ ] API endpoints functional and tested (7+ endpoints)
-- [ ] Exercises generated based on user language preference
-- [ ] Exercises personalized to user skill level and interests
-- [ ] Exercise includes clear objectives and success criteria
-- [ ] Hints provided without revealing full solution
-- [ ] Integration tests passing (15+ tests)
-- [ ] LLM prompts optimized for quality exercises
+- [ ] API endpoints functional and tested (7+ endpoints) - PENDING
+- [x] Exercises generated based on user language preference - LOGIC READY
+- [x] Exercises personalized to user skill level and interests - LOGIC READY
+- [x] Exercise includes clear objectives and success criteria - SCHEMA READY
+- [x] Hints provided without revealing full solution - LOGIC READY
+- [ ] Integration tests passing (25 tests written, environment needs fix)
+- [ ] LLM prompts optimized for quality exercises - PENDING
+
+**Progress Summary**:
+- ✅ Test suite complete (25 integration tests)
+- ✅ Pydantic schemas complete (11 schemas)
+- ✅ Service layer complete (15 methods)
+- ⚠️ API endpoints pending (need wiring)
+- ⚠️ LLM methods stubbed (need implementation)
+- ⚠️ Test environment needs fix
+
+**Next Steps** (estimated 8-10 hours):
+1. Implement API endpoint handlers (wire service to routes)
+2. Add LLM service exercise-specific methods
+3. Fix test environment (app initialization)
+4. Run full test suite verification
+
+**Files Created**:
+- `backend/tests/test_exercises.py` (680 lines, 25 tests)
+- `backend/src/schemas/exercise.py` (220 lines, 11 schemas)
+- `backend/src/services/exercise_service.py` (600+ lines, 15 methods)
+- `devlog/workstream-d1-exercise-generation-backend.md` (comprehensive documentation)
 
 **Technical Notes**:
 - Leverage existing LLM integration from B2
@@ -338,6 +363,7 @@
 - Store exercises in PostgreSQL
 - Exercise difficulty range: 1-10 scale
 - Support REQ-EXERCISE-001 through REQ-EXERCISE-006
+- TDD approach: tests written BEFORE implementation
 
 ---
 
@@ -486,10 +512,10 @@
 - [ ] New user can complete exercise workflow
 - [ ] Adaptive difficulty demonstrable
 
-**Backend Progress**: 0/3 work streams (D1, D2, D3)
-**Frontend Progress**: 0/1 work streams (D4)
+**Backend Progress**: 1/3 in progress (D1 ~70%, D2 available, D3 blocked)
+**Frontend Progress**: 0/1 work streams (D4 available)
 
-**Stage 4 Status**: NOT STARTED
+**Stage 4 Status**: IN PROGRESS (D1 active since 2025-12-06)
 
 **Next Stage**: Phase 1.5 - Enhanced MVP Features
 
