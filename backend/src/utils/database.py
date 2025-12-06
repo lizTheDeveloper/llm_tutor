@@ -175,6 +175,8 @@ def init_database(
     database_url: str,
     pool_size: int = 20,
     max_overflow: int = 10,
+    enable_slow_query_logging: bool = True,
+    slow_query_threshold_ms: float = 100.0
 ) -> DatabaseManager:
     """
     Initialize global database manager (thread-safe).
@@ -183,6 +185,8 @@ def init_database(
         database_url: PostgreSQL connection URL
         pool_size: Connection pool size
         max_overflow: Maximum overflow connections
+        enable_slow_query_logging: Enable slow query logging (PERF-1)
+        slow_query_threshold_ms: Slow query threshold in milliseconds
 
     Returns:
         Initialized DatabaseManager instance
@@ -197,6 +201,14 @@ def init_database(
                 max_overflow=max_overflow,
             )
             logger.info("Global database manager initialized")
+
+            # Enable slow query logging (PERF-1)
+            if enable_slow_query_logging:
+                from ..middleware.slow_query_logger import init_slow_query_logging
+                init_slow_query_logging(
+                    _db_manager.async_engine,
+                    threshold_ms=slow_query_threshold_ms
+                )
 
     return _db_manager
 

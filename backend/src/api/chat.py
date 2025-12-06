@@ -238,6 +238,11 @@ async def get_conversations() -> Dict[str, Any]:
 
     Returns:
         JSON response with conversation list
+
+    Performance Optimization (PERF-1):
+    - Uses subquery to fetch last message timestamps in single query
+    - Eliminates N+1 query problem (was: 1 + N queries, now: 2 queries)
+    - Performance: O(N) -> O(1) database round trips
     """
     try:
         # Get current user
@@ -248,28 +253,43 @@ async def get_conversations() -> Dict[str, Any]:
         offset = request.args.get("offset", default=0, type=int)
 
         async with get_session() as session:
-            # Fetch user's conversations
+            # PERF-1 OPTIMIZATION: Use subquery to get last message timestamps
+            # This eliminates N+1 query problem
+            from sqlalchemy import func
+
+            last_message_subquery = (
+                select(
+                    Message.conversation_id,
+                    func.max(Message.created_at).label("last_message_at")
+                )
+                .group_by(Message.conversation_id)
+                .subquery()
+            )
+
+            # Get total count for pagination
+            count_result = await session.execute(
+                select(func.count(Conversation.id))
+                .where(Conversation.user_id == user_id)
+            )
+            total_count = count_result.scalar()
+
+            # Fetch conversations with last message timestamp in single query
             result = await session.execute(
-                select(Conversation)
+                select(Conversation, last_message_subquery.c.last_message_at)
+                .outerjoin(
+                    last_message_subquery,
+                    Conversation.id == last_message_subquery.c.conversation_id
+                )
                 .where(Conversation.user_id == user_id)
                 .order_by(desc(Conversation.updated_at))
                 .limit(limit)
                 .offset(offset)
             )
-            conversations = result.scalars().all()
+            rows = result.all()
 
-            # Build response
+            # Build response (no additional queries needed)
             conversation_list = []
-            for conv in conversations:
-                # Get last message timestamp
-                last_msg_result = await session.execute(
-                    select(Message)
-                    .where(Message.conversation_id == conv.id)
-                    .order_by(desc(Message.created_at))
-                    .limit(1)
-                )
-                last_msg = last_msg_result.scalar_one_or_none()
-
+            for conv, last_message_at in rows:
                 conversation_list.append({
                     "id": conv.id,
                     "title": conv.title,
@@ -277,22 +297,24 @@ async def get_conversations() -> Dict[str, Any]:
                     "context_type": conv.context_type,
                     "created_at": conv.created_at.isoformat(),
                     "updated_at": conv.updated_at.isoformat(),
-                    "last_message_at": last_msg.created_at.isoformat() if last_msg else conv.updated_at.isoformat()
+                    "last_message_at": last_message_at.isoformat() if last_message_at else conv.updated_at.isoformat()
                 })
 
             logger.info(
-                "Conversations retrieved",
+                "Conversations retrieved (optimized)",
                 extra={
                     "user_id": user_id,
                     "count": len(conversation_list),
+                    "total": total_count,
                     "limit": limit,
-                    "offset": offset
+                    "offset": offset,
+                    "optimization": "subquery_join"
                 }
             )
 
             return jsonify({
                 "conversations": conversation_list,
-                "total": len(conversation_list),
+                "total": total_count,
                 "limit": limit,
                 "offset": offset
             }), 200
@@ -313,7 +335,7 @@ async def get_conversations() -> Dict[str, Any]:
 @require_verified_email
 async def get_conversation(conversation_id: int) -> Dict[str, Any]:
     """
-    Get specific conversation history.
+    Get specific conversation history with pagination.
 
     Args:
         conversation_id: Conversation identifier
@@ -321,12 +343,25 @@ async def get_conversation(conversation_id: int) -> Dict[str, Any]:
     Headers:
         Authorization: Bearer <access_token>
 
+    Query Parameters:
+        limit: Number of messages to return (default: 50, max: 200)
+        offset: Pagination offset (default: 0)
+
     Returns:
         JSON response with conversation messages
+
+    Performance Optimization (PERF-1):
+    - Added pagination to prevent loading 1000+ messages at once
+    - Reduces memory usage and API response time
+    - Typical conversation has 20-100 messages, but some can have 1000+
     """
     try:
         # Get current user
         user_id = get_current_user_id()
+
+        # Get pagination parameters (PERF-1)
+        limit = min(int(request.args.get("limit", 50)), 200)  # Cap at 200 messages
+        offset = int(request.args.get("offset", 0))
 
         async with get_session() as session:
             # Fetch conversation and verify ownership
@@ -341,11 +376,21 @@ async def get_conversation(conversation_id: int) -> Dict[str, Any]:
             if conversation.user_id != user_id:
                 raise APIError("Access denied", status_code=403)
 
-            # Fetch all messages in conversation
+            # Get total message count (PERF-1)
+            from sqlalchemy import func
+            count_result = await session.execute(
+                select(func.count(Message.id))
+                .where(Message.conversation_id == conversation_id)
+            )
+            total_messages = count_result.scalar()
+
+            # Fetch paginated messages in conversation (PERF-1)
             messages_result = await session.execute(
                 select(Message)
                 .where(Message.conversation_id == conversation_id)
                 .order_by(Message.created_at)
+                .limit(limit)
+                .offset(offset)
             )
             messages = messages_result.scalars().all()
 
@@ -364,11 +409,14 @@ async def get_conversation(conversation_id: int) -> Dict[str, Any]:
             ]
 
             logger.info(
-                "Conversation retrieved",
+                "Conversation retrieved (paginated)",
                 extra={
                     "user_id": user_id,
                     "conversation_id": conversation_id,
-                    "message_count": len(message_list)
+                    "message_count": len(message_list),
+                    "total_messages": total_messages,
+                    "limit": limit,
+                    "offset": offset
                 }
             )
 
@@ -381,7 +429,13 @@ async def get_conversation(conversation_id: int) -> Dict[str, Any]:
                     "created_at": conversation.created_at.isoformat(),
                     "updated_at": conversation.updated_at.isoformat()
                 },
-                "messages": message_list
+                "messages": message_list,
+                "pagination": {
+                    "total": total_messages,
+                    "limit": limit,
+                    "offset": offset,
+                    "has_more": (offset + limit) < total_messages
+                }
             }), 200
 
     except APIError:
