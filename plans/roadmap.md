@@ -973,6 +973,365 @@
 
 ---
 
+## Stage 4.75: Production Readiness Completion
+
+**Goal**: Address critical P0 blockers and high-priority security/operational issues identified in architectural review.
+
+**Status**: ACTIVE - Critical security blockers must be resolved before production deployment
+
+**Prerequisites**: Stage 4.5 complete (ARCH-REVIEW findings documented)
+
+---
+
+#### Work Stream SEC-2: Secrets Management
+
+**Agent**: TDD Workflow Engineer (tdd-workflow-engineer)
+**Dependencies**: None (P0 BLOCKER - highest priority)
+**Status**: IN PROGRESS
+**Claimed**: 2025-12-06
+**Priority**: P0 - CRITICAL BLOCKER (blocks all production deployment)
+**Parallel With**: None - must complete first
+
+**Tasks:**
+- [ ] Immediate fix (Day 1):
+  - Remove .env from git tracking
+  - Create .env.example with placeholders
+  - Rotate ALL production secrets (JWT, database, Redis, GROQ API key)
+- [ ] Short-term (Days 2-4):
+  - Set up secrets management (AWS Secrets Manager/HashiCorp Vault)
+  - Purge .env from git history (BFG Repo-Cleaner)
+  - Add pre-commit hook to prevent secret commits
+  - Document secrets management in deployment guide
+  - Use different secrets per environment (dev/staging/prod)
+
+**Deliverable**: Secure secrets management with no secrets in git
+
+**Effort**: M (1 day immediate + 3 days comprehensive = 4 days total)
+
+**Done When**:
+- [ ] .env removed from git tracking
+- [ ] .env.example created and committed
+- [ ] All production secrets rotated
+- [ ] Secrets manager configured (cloud-based or Vault)
+- [ ] Pre-commit hooks prevent future secret commits
+- [ ] Git history purged of secrets
+- [ ] Documentation updated with secrets management procedures
+
+**Security Impact**:
+- Fixes: AP-CRIT-001 (Hardcoded Configuration Values)
+- Prevents: Authentication bypass, database compromise, LLM API abuse
+- Estimated risk: $10,000+ potential cost from API abuse
+
+---
+
+#### Work Stream SEC-2-AUTH: Email Verification Enforcement
+
+**Agent**: Available
+**Dependencies**: None (parallel with SEC-2)
+**Status**: NOT STARTED
+**Priority**: P0 - CRITICAL BLOCKER
+**Parallel With**: SEC-2
+
+**Tasks:**
+- [ ] Complete `require_verified_email` decorator implementation
+- [ ] Implement email verification send on registration
+- [ ] Create verification token endpoint
+- [ ] Add email resend functionality
+- [ ] Integration tests for email verification enforcement
+- [ ] Audit all routes to identify which require verified email
+- [ ] Add decorator to appropriate routes
+
+**Deliverable**: Email verification fully enforced across platform
+
+**Effort**: S (2 days)
+
+**Done When**:
+- [ ] `require_verified_email` decorator functional
+- [ ] Email verification workflow complete end-to-end
+- [ ] Integration tests passing
+- [ ] All appropriate routes protected
+- [ ] Documentation updated
+
+---
+
+#### Work Stream SEC-2-CONFIG: Configuration Hardening
+
+**Agent**: Available
+**Dependencies**: None (parallel)
+**Status**: NOT STARTED
+**Priority**: P0 - CRITICAL BLOCKER
+**Parallel With**: SEC-2, SEC-2-AUTH
+
+**Tasks:**
+- [ ] Add `validate_production_config()` model validator
+- [ ] Require critical environment variables in production
+- [ ] Detect and reject development secrets in production
+- [ ] Validate URL formats (DATABASE_URL, REDIS_URL, frontend/backend URLs)
+- [ ] Validate OAuth configuration if enabled
+- [ ] Tests verify validation logic
+
+**Deliverable**: Production configuration validation that fails fast on startup
+
+**Effort**: XS (4 hours)
+
+**Done When**:
+- [ ] Application fails fast on invalid production config
+- [ ] All critical settings validated at startup
+- [ ] Development secrets detected and rejected
+- [ ] Clear error messages guide fixes
+- [ ] Tests verify validation
+
+---
+
+#### Work Stream SEC-3: Rate Limiting Enhancement
+
+**Agent**: Available
+**Dependencies**: SEC-2-CONFIG (needs config for limits)
+**Status**: NOT STARTED
+**Priority**: P1 - HIGH (cost/DoS risk)
+**Parallel With**: Can run after SEC-2-CONFIG complete
+
+**Tasks:**
+- [ ] Add rate limiting decorator to all LLM endpoints
+- [ ] Implement tiered limits based on user tier
+- [ ] Set conservative limits (chat, exercise gen, hints)
+- [ ] Add cost tracking per user
+- [ ] Implement token bucket algorithm
+- [ ] Set up cost limit alerts ($50/day threshold)
+- [ ] Integration tests for rate limiting
+
+**Deliverable**: Rate limiting on all expensive endpoints
+
+**Effort**: S (3 days)
+
+**Done When**:
+- [ ] All LLM endpoints have rate limiting
+- [ ] Rate limits prevent cost abuse
+- [ ] Clear error messages when limits exceeded
+- [ ] Monitoring/alerting configured
+- [ ] Tests validate rate limiting
+
+---
+
+#### Work Stream SEC-3-INPUT: Input Validation Hardening
+
+**Agent**: Available
+**Dependencies**: None (parallel)
+**Status**: NOT STARTED
+**Priority**: P1 - HIGH (security risk)
+**Parallel With**: SEC-3
+
+**Tasks:**
+- [ ] Create Pydantic schemas for ALL request bodies
+- [ ] Define maximum lengths for all text fields
+- [ ] Add sanitization for user-generated content
+- [ ] Implement markdown sanitization
+- [ ] Add URL validation for GitHub URLs
+- [ ] Apply schemas to all endpoints
+- [ ] Test all endpoints with oversized input and XSS vectors
+
+**Deliverable**: Comprehensive input validation across all endpoints
+
+**Effort**: M (5 days)
+
+**Done When**:
+- [ ] All endpoints have Pydantic schemas
+- [ ] Maximum lengths enforced
+- [ ] XSS protection via sanitization
+- [ ] Clear validation error messages
+- [ ] Integration tests validate all limits
+
+---
+
+#### Work Stream SEC-3-CSRF: CSRF Protection
+
+**Agent**: Available
+**Dependencies**: SEC-1-FE (cookie-based auth complete)
+**Status**: NOT STARTED
+**Priority**: P1 - HIGH (security gap)
+**Parallel With**: SEC-3, SEC-3-INPUT
+
+**Tasks:**
+- [ ] Analyze SameSite cookie protection adequacy
+- [ ] Add custom header requirement (`X-Requested-With`)
+- [ ] Implement double-submit cookie pattern if needed
+- [ ] Update frontend to include custom headers/tokens
+- [ ] Test CSRF attack scenarios
+- [ ] Cross-browser testing
+
+**Deliverable**: CSRF protection on all state-changing endpoints
+
+**Effort**: S (2 days)
+
+**Done When**:
+- [ ] CSRF protection implemented
+- [ ] All state-changing endpoints protected
+- [ ] Frontend updated with CSRF tokens/headers
+- [ ] Tests verify CSRF prevention
+- [ ] Documentation updated
+
+---
+
+#### Work Stream OPS-1: Production Monitoring Setup
+
+**Agent**: Available
+**Dependencies**: None (critical for operations)
+**Status**: NOT STARTED
+**Priority**: P1 - HIGH (operations)
+**Parallel With**: Can run independently
+
+**Tasks:**
+- [ ] Set up error tracking (Sentry or alternative)
+- [ ] Add custom metrics tracking (latency, LLM cost, DB performance, active users)
+- [ ] Set up Prometheus/Grafana or cloud monitoring
+- [ ] Create dashboards for key metrics
+- [ ] Configure external uptime monitoring
+- [ ] Configure alert thresholds and routing
+- [ ] Create runbooks for common alerts
+- [ ] Document monitoring setup
+
+**Deliverable**: Production monitoring and alerting operational
+
+**Effort**: M (5 days)
+
+**Done When**:
+- [ ] Error tracking operational
+- [ ] Custom metrics collected
+- [ ] Dashboards created
+- [ ] Health check monitoring configured
+- [ ] Alerting operational
+- [ ] Documentation complete
+
+---
+
+#### Work Stream PERF-1: Database Optimization
+
+**Agent**: Available
+**Dependencies**: DB-OPT (builds on previous work)
+**Status**: NOT STARTED
+**Priority**: P1 - HIGH (performance)
+**Parallel With**: OPS-1
+
+**Tasks:**
+- [ ] Profile all database queries
+- [ ] Identify N+1 query problems
+- [ ] Add eager loading (`selectinload`, `joinedload`)
+- [ ] Implement pagination on list endpoints
+- [ ] Implement Redis caching for frequently accessed data
+- [ ] Add cache invalidation logic
+- [ ] Add slow query logging (>100ms)
+- [ ] Set up query performance dashboard
+
+**Deliverable**: Optimized database queries with pagination and caching
+
+**Effort**: S (3 days)
+
+**Done When**:
+- [ ] All N+1 queries fixed
+- [ ] Pagination on all list endpoints
+- [ ] Query result caching implemented
+- [ ] Slow query monitoring operational
+- [ ] Performance improved (measured)
+
+---
+
+#### Work Stream QA-1: Test Coverage Improvement
+
+**Agent**: Available
+**Dependencies**: Security fixes (SEC-2, SEC-3 series)
+**Status**: NOT STARTED
+**Priority**: P2 - MEDIUM (quality assurance)
+**Parallel With**: DOC-1
+
+**Tasks:**
+- [ ] Run coverage analysis (backend and frontend)
+- [ ] Fix failing tests (frontend onboarding, backend DB config)
+- [ ] Add missing tests to reach 80% coverage
+- [ ] Set up Playwright for E2E tests
+- [ ] Test critical user journeys (registration → onboarding → exercise)
+- [ ] Add E2E tests to CI/CD
+- [ ] Add coverage reporting and gates to CI/CD
+
+**Deliverable**: 80%+ test coverage with E2E tests
+
+**Effort**: L (10 days)
+
+**Done When**:
+- [ ] Backend coverage ≥ 80%
+- [ ] Frontend coverage ≥ 80%
+- [ ] All tests passing
+- [ ] E2E tests for critical flows
+- [ ] Coverage gates in CI/CD
+
+---
+
+#### Work Stream DOC-1: API Documentation
+
+**Agent**: Available
+**Dependencies**: None
+**Status**: NOT STARTED
+**Priority**: P2 - MEDIUM (developer experience)
+**Parallel With**: QA-1
+
+**Tasks:**
+- [ ] Configure Quart-Schema to expose /docs
+- [ ] Add OpenAPI metadata
+- [ ] Add comprehensive docstrings to all endpoints
+- [ ] Include request/response examples
+- [ ] Document authentication requirements
+- [ ] Generate TypeScript client from OpenAPI spec
+- [ ] Publish API docs to public URL
+
+**Deliverable**: Published API documentation with Swagger UI
+
+**Effort**: S (3 days)
+
+**Done When**:
+- [ ] Swagger UI accessible at /docs
+- [ ] All endpoints documented
+- [ ] Examples for all requests/responses
+- [ ] TypeScript client generated
+- [ ] Documentation published
+
+---
+
+## INTEGRATION CHECKPOINT - Stage 4.75 Completion
+
+**Completion Criteria:**
+- [ ] All P0 issues resolved (SEC-2, SEC-2-AUTH, SEC-2-CONFIG)
+- [ ] All P1 issues resolved (SEC-3, SEC-3-INPUT, SEC-3-CSRF, OPS-1, PERF-1)
+- [ ] Test coverage ≥ 80% (QA-1)
+- [ ] API documentation published (DOC-1)
+- [ ] Production monitoring operational (OPS-1)
+- [ ] Security audit passed
+- [ ] Load testing completed (1000+ concurrent users)
+- [ ] Deployment runbook documented
+
+**Production Deployment Checklist:**
+- [ ] Secrets in secrets manager (not git)
+- [ ] Email verification enforced
+- [ ] Configuration validated
+- [ ] Rate limiting on all LLM endpoints
+- [ ] Input validation on all endpoints
+- [ ] CSRF protection enabled
+- [ ] Monitoring and alerting configured
+- [ ] Database queries optimized and paginated
+- [ ] Test coverage ≥ 80%
+- [ ] API documentation available
+- [ ] E2E tests passing
+- [ ] Load testing passed
+- [ ] Security scan passed (no critical vulnerabilities)
+- [ ] Backup/recovery tested
+- [ ] Deployment playbook verified
+
+**Progress**: 0/10 work streams complete
+
+**Stage 4.75 Status**: ACTIVE - Critical security work in progress
+
+**Next Stage**: Production Deployment (Stage 5)
+
+---
+
 ## Backlog
 
 ### Future Stages (Not Yet Started)
@@ -1022,9 +1381,9 @@ All completed work archived in `/Users/annhoward/src/llm_tutor/plans/completed/r
 
 **File Name:** roadmap.md
 **Location:** /home/llmtutor/llm_tutor/plans/roadmap.md
-**Version:** 1.19
+**Version:** 1.20
 **Date:** 2025-12-06
-**Status:** Active - Stage 4.5 Complete ✅ (ARCH-REVIEW, SEC-1, SEC-1-FE, DB-OPT all delivered - 2025-12-06)
+**Status:** Active - Stage 4.75 IN PROGRESS (SEC-2 claimed by tdd-workflow-engineer - 2025-12-06)
 **Classification:** Internal
 
 **Related Documents:**
