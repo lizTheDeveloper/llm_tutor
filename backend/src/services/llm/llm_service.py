@@ -433,3 +433,323 @@ class LLMService:
             **usage,
             "limits": rate_limits,
         }
+
+    # ===================================================================
+    # EXERCISE-SPECIFIC METHODS
+    # ===================================================================
+
+    async def generate_exercise(
+        self,
+        user_id: str,
+        language: str,
+        skill_level: str,
+        interests: str,
+        recent_topics: List[str],
+        difficulty: str,
+        estimated_time: int = 30,
+    ) -> Dict[str, Any]:
+        """
+        Generate a personalized coding exercise using LLM.
+
+        Args:
+            user_id: User identifier for rate limiting
+            language: Programming language
+            skill_level: User's skill level (beginner, intermediate, advanced)
+            interests: User's interests
+            recent_topics: Recently covered topics to avoid repetition
+            difficulty: Target difficulty level
+            estimated_time: Estimated completion time in minutes
+
+        Returns:
+            Dictionary with exercise data:
+            {
+                "title": str,
+                "description": str,
+                "objectives": List[str],
+                "requirements": str,
+                "example_input": Optional[str],
+                "example_output": Optional[str],
+                "hints": List[str],
+                "test_cases": Optional[List[Dict]]
+            }
+        """
+        from .prompt_templates import PromptType
+
+        # Build user prompt with context
+        user_prompt = self.prompt_manager.build_prompt(
+            PromptType.EXERCISE_GENERATION,
+            language=language,
+            skill_level=skill_level,
+            interests=interests,
+            recent_topics=", ".join(recent_topics) if recent_topics else "None",
+            difficulty=difficulty,
+            estimated_time=estimated_time,
+        )
+
+        # Get system prompt
+        system_prompt = self.prompt_manager.get_system_prompt(PromptType.EXERCISE_GENERATION)
+
+        # Add structured output format to prompt
+        user_prompt += """
+
+Return the exercise in the following JSON format:
+{
+    "title": "Exercise title",
+    "description": "Detailed description of the exercise",
+    "objectives": ["Learning objective 1", "Learning objective 2"],
+    "requirements": "What the student needs to implement",
+    "example_input": "Example input (if applicable)",
+    "example_output": "Expected output (if applicable)",
+    "hints": ["Hint 1", "Hint 2"],
+    "test_cases": [{"input": "...", "expected_output": "..."}]
+}
+
+Ensure all fields are filled appropriately for a {difficulty} level {language} exercise.""".format(
+            difficulty=difficulty,
+            language=language,
+        )
+
+        # Generate completion
+        messages = [Message(role="user", content=user_prompt)]
+        response = await self.generate_completion(
+            messages=messages,
+            user_id=user_id,
+            system_prompt=system_prompt,
+            temperature=0.8,  # Higher creativity for exercise generation
+            max_tokens=2000,
+        )
+
+        # Parse JSON response
+        try:
+            # Try to extract JSON from markdown code blocks if present
+            content = response.content.strip()
+            if "```json" in content:
+                # Extract JSON from code block
+                json_start = content.find("```json") + 7
+                json_end = content.find("```", json_start)
+                content = content[json_start:json_end].strip()
+            elif "```" in content:
+                # Extract from generic code block
+                json_start = content.find("```") + 3
+                json_end = content.find("```", json_start)
+                content = content[json_start:json_end].strip()
+
+            exercise_data = json.loads(content)
+
+            # Validate required fields
+            required_fields = ["title", "description", "objectives", "requirements"]
+            for field in required_fields:
+                if field not in exercise_data:
+                    self.logger.warning(
+                        f"Missing required field in exercise generation: {field}",
+                        extra={"user_id": user_id, "content": content}
+                    )
+                    exercise_data[field] = ""
+
+            return exercise_data
+
+        except json.JSONDecodeError as error:
+            self.logger.error(
+                "Failed to parse exercise JSON",
+                extra={
+                    "error": str(error),
+                    "content": response.content,
+                    "user_id": user_id,
+                }
+            )
+            # Return a fallback exercise structure
+            return {
+                "title": "Custom Exercise",
+                "description": response.content,
+                "objectives": [],
+                "requirements": "See description",
+                "example_input": None,
+                "example_output": None,
+                "hints": [],
+                "test_cases": None,
+            }
+
+    async def generate_hint(
+        self,
+        user_id: str,
+        exercise_description: str,
+        student_code: Optional[str],
+        student_question: Optional[str],
+        skill_level: str,
+        hints_count: int,
+    ) -> str:
+        """
+        Generate a contextual hint for an exercise without revealing the solution.
+
+        Args:
+            user_id: User identifier for rate limiting
+            exercise_description: The exercise description
+            student_code: Student's current code (if any)
+            student_question: Student's specific question (if any)
+            skill_level: User's skill level
+            hints_count: Number of hints already given
+
+        Returns:
+            Hint text as string
+        """
+        from .prompt_templates import PromptType
+
+        # Build context
+        user_prompt = self.prompt_manager.build_prompt(
+            PromptType.HINT_GENERATION,
+            exercise_description=exercise_description,
+            student_code=student_code or "No code submitted yet",
+            student_question=student_question or "General hint request",
+            skill_level=skill_level,
+            hints_count=hints_count,
+        )
+
+        # Get system prompt
+        system_prompt = self.prompt_manager.get_system_prompt(PromptType.HINT_GENERATION)
+
+        # Add guidance based on hint count
+        if hints_count == 0:
+            user_prompt += "\n\nThis is the first hint. Be subtle and guide with questions."
+        elif hints_count == 1:
+            user_prompt += "\n\nThis is the second hint. Be more specific but don't give away the solution."
+        else:
+            user_prompt += "\n\nThis is hint #{hints_count}. The student is struggling. Provide more concrete guidance but still encourage them to think.".format(hints_count=hints_count + 1)
+
+        # Generate completion
+        messages = [Message(role="user", content=user_prompt)]
+        response = await self.generate_completion(
+            messages=messages,
+            user_id=user_id,
+            system_prompt=system_prompt,
+            temperature=0.7,  # Balanced creativity
+            max_tokens=500,
+        )
+
+        return response.content
+
+    async def evaluate_submission(
+        self,
+        user_id: str,
+        exercise_description: str,
+        student_code: str,
+        skill_level: str,
+        learning_style: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Evaluate a student's code submission and provide feedback.
+
+        Args:
+            user_id: User identifier for rate limiting
+            exercise_description: The exercise description
+            student_code: Student's submitted code
+            skill_level: User's skill level
+            learning_style: User's preferred learning style (optional)
+
+        Returns:
+            Dictionary with evaluation results:
+            {
+                "is_correct": bool,
+                "score": int (0-100),
+                "feedback": str,
+                "strengths": List[str],
+                "improvements": List[str],
+                "next_steps": List[str]
+            }
+        """
+        from .prompt_templates import PromptType
+
+        # Build evaluation prompt
+        criteria = """
+1. Correctness: Does the code solve the problem correctly?
+2. Code quality: Is the code clean, readable, and well-structured?
+3. Best practices: Does it follow language best practices?
+4. Efficiency: Is the solution reasonably efficient?
+5. Edge cases: Does it handle edge cases properly?
+"""
+
+        user_prompt = self.prompt_manager.build_prompt(
+            PromptType.FEEDBACK_GENERATION,
+            exercise_description=exercise_description,
+            student_code=student_code,
+            criteria=criteria,
+            skill_level=skill_level,
+            learning_style=learning_style or "balanced",
+        )
+
+        # Request structured evaluation
+        user_prompt += """
+
+Please evaluate the submission and return your assessment in the following JSON format:
+{
+    "is_correct": true/false,
+    "score": 0-100,
+    "feedback": "Overall feedback paragraph",
+    "strengths": ["What they did well 1", "What they did well 2"],
+    "improvements": ["Area for improvement 1", "Area for improvement 2"],
+    "next_steps": ["Suggested next step 1", "Suggested next step 2"]
+}
+
+Be encouraging and constructive in your feedback."""
+
+        # Get system prompt
+        system_prompt = self.prompt_manager.get_system_prompt(PromptType.FEEDBACK_GENERATION)
+
+        # Generate completion
+        messages = [Message(role="user", content=user_prompt)]
+        response = await self.generate_completion(
+            messages=messages,
+            user_id=user_id,
+            system_prompt=system_prompt,
+            temperature=0.6,  # Lower temperature for consistent evaluation
+            max_tokens=1000,
+        )
+
+        # Parse JSON response
+        try:
+            # Try to extract JSON from markdown code blocks if present
+            content = response.content.strip()
+            if "```json" in content:
+                json_start = content.find("```json") + 7
+                json_end = content.find("```", json_start)
+                content = content[json_start:json_end].strip()
+            elif "```" in content:
+                json_start = content.find("```") + 3
+                json_end = content.find("```", json_start)
+                content = content[json_start:json_end].strip()
+
+            evaluation = json.loads(content)
+
+            # Validate and set defaults
+            if "is_correct" not in evaluation:
+                evaluation["is_correct"] = False
+            if "score" not in evaluation:
+                evaluation["score"] = 0
+            if "feedback" not in evaluation:
+                evaluation["feedback"] = response.content
+            if "strengths" not in evaluation:
+                evaluation["strengths"] = []
+            if "improvements" not in evaluation:
+                evaluation["improvements"] = []
+            if "next_steps" not in evaluation:
+                evaluation["next_steps"] = []
+
+            return evaluation
+
+        except json.JSONDecodeError as error:
+            self.logger.error(
+                "Failed to parse evaluation JSON",
+                extra={
+                    "error": str(error),
+                    "content": response.content,
+                    "user_id": user_id,
+                }
+            )
+            # Return a fallback evaluation
+            return {
+                "is_correct": False,
+                "score": 50,
+                "feedback": response.content,
+                "strengths": [],
+                "improvements": [],
+                "next_steps": [],
+            }

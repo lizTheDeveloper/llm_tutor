@@ -23,8 +23,8 @@ def register_blueprints(app: Quart) -> None:
     Args:
         app: Quart application instance
     """
-    # API version prefix
-    api_prefix = "/api/v1"
+    # API prefix (no versioning for now)
+    api_prefix = "/api"
 
     # Register blueprints
     app.register_blueprint(health_bp, url_prefix=f"{api_prefix}/health")
@@ -36,6 +36,5 @@ def register_blueprints(app: Quart) -> None:
 
     logger.info(
         "API blueprints registered",
-        blueprints=["health", "auth", "users", "exercises", "chat", "github"],
-        api_version="v1",
+        blueprints=["health", "auth", "users", "exercises", "chat", "github"]
     )
