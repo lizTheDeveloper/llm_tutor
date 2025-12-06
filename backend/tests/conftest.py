@@ -25,7 +25,8 @@ from src.app import create_app
 
 # Test database URL - using dev database for tests (no permission to create test DB)
 # NOTE: Tests use transactions that rollback, so dev data is safe
-TEST_DATABASE_URL = "postgresql+asyncpg://llmtutor:llm_tutor_2024_secure@localhost/llm_tutor_dev"
+# Load from environment or use default
+TEST_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://llmtutor@localhost/llm_tutor_dev")
 
 
 @pytest.fixture(scope="function")

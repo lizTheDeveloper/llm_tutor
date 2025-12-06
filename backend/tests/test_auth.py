@@ -11,7 +11,7 @@ from src.models.user import User, UserRole
 @pytest.mark.asyncio
 async def test_register_success(client, patched_get_session, mock_email_service, mock_auth_tokens):
     """
-    Test POST /api/v1/auth/register with valid data creates user.
+    Test POST /api/auth/register with valid data creates user.
     """
     registration_data = {
         "email": "test@example.com",
@@ -19,7 +19,7 @@ async def test_register_success(client, patched_get_session, mock_email_service,
         "name": "Test User"
     }
 
-    response = await client.post("/api/v1/auth/register", json=registration_data)
+    response = await client.post("/api/auth/register", json=registration_data)
     assert response.status_code == 201
 
     data = await response.get_json()
@@ -38,24 +38,24 @@ async def test_register_success(client, patched_get_session, mock_email_service,
 @pytest.mark.asyncio
 async def test_register_missing_fields(client):
     """
-    Test POST /api/v1/auth/register with missing fields returns 400.
+    Test POST /api/auth/register with missing fields returns 400.
     """
     # Missing password
-    response = await client.post("/api/v1/auth/register", json={
+    response = await client.post("/api/auth/register", json={
         "email": "test@example.com",
         "name": "Test User"
     })
     assert response.status_code == 400
 
     # Missing email
-    response = await client.post("/api/v1/auth/register", json={
+    response = await client.post("/api/auth/register", json={
         "password": "SecureP@ssw0rd123",
         "name": "Test User"
     })
     assert response.status_code == 400
 
     # Missing name
-    response = await client.post("/api/v1/auth/register", json={
+    response = await client.post("/api/auth/register", json={
         "email": "test@example.com",
         "password": "SecureP@ssw0rd123"
     })
@@ -65,9 +65,9 @@ async def test_register_missing_fields(client):
 @pytest.mark.asyncio
 async def test_register_invalid_email(client):
     """
-    Test POST /api/v1/auth/register with invalid email returns 400.
+    Test POST /api/auth/register with invalid email returns 400.
     """
-    response = await client.post("/api/v1/auth/register", json={
+    response = await client.post("/api/auth/register", json={
         "email": "not-an-email",
         "password": "SecureP@ssw0rd123",
         "name": "Test User"
@@ -78,9 +78,9 @@ async def test_register_invalid_email(client):
 @pytest.mark.asyncio
 async def test_register_weak_password(client):
     """
-    Test POST /api/v1/auth/register with weak password returns 400.
+    Test POST /api/auth/register with weak password returns 400.
     """
-    response = await client.post("/api/v1/auth/register", json={
+    response = await client.post("/api/auth/register", json={
         "email": "test@example.com",
         "password": "weak",
         "name": "Test User"
@@ -91,7 +91,7 @@ async def test_register_weak_password(client):
 @pytest.mark.asyncio
 async def test_register_duplicate_email(client, patched_get_session, mock_email_service, mock_auth_tokens):
     """
-    Test POST /api/v1/auth/register with existing email returns 409.
+    Test POST /api/auth/register with existing email returns 409.
     """
     # Create first user
     registration_data = {
@@ -99,19 +99,19 @@ async def test_register_duplicate_email(client, patched_get_session, mock_email_
         "password": "SecureP@ssw0rd123",
         "name": "First User"
     }
-    response1 = await client.post("/api/v1/auth/register", json=registration_data)
+    response1 = await client.post("/api/auth/register", json=registration_data)
     assert response1.status_code == 201
 
     # Try to create duplicate
     registration_data["name"] = "Second User"
-    response2 = await client.post("/api/v1/auth/register", json=registration_data)
+    response2 = await client.post("/api/auth/register", json=registration_data)
     assert response2.status_code == 409
 
 
 @pytest.mark.asyncio
 async def test_login_success(client, patched_get_session, mock_email_service, mock_auth_tokens, mock_auth_session):
     """
-    Test POST /api/v1/auth/login with valid credentials returns tokens.
+    Test POST /api/auth/login with valid credentials returns tokens.
     """
     # Register user first
     registration_data = {
@@ -119,14 +119,14 @@ async def test_login_success(client, patched_get_session, mock_email_service, mo
         "password": "SecureP@ssw0rd123",
         "name": "Login User"
     }
-    await client.post("/api/v1/auth/register", json=registration_data)
+    await client.post("/api/auth/register", json=registration_data)
 
     # Login with correct credentials
     login_data = {
         "email": "login@example.com",
         "password": "SecureP@ssw0rd123"
     }
-    response = await client.post("/api/v1/auth/login", json=login_data)
+    response = await client.post("/api/auth/login", json=login_data)
     assert response.status_code == 200
 
     data = await response.get_json()
@@ -140,17 +140,17 @@ async def test_login_success(client, patched_get_session, mock_email_service, mo
 @pytest.mark.asyncio
 async def test_login_wrong_password(client, patched_get_session, mock_email_service, mock_auth_tokens):
     """
-    Test POST /api/v1/auth/login with wrong password returns 401.
+    Test POST /api/auth/login with wrong password returns 401.
     """
     # Register user
-    await client.post("/api/v1/auth/register", json={
+    await client.post("/api/auth/register", json={
         "email": "wrongpass@example.com",
         "password": "CorrectP@ssw0rd123",
         "name": "User"
     })
 
     # Try to login with wrong password
-    response = await client.post("/api/v1/auth/login", json={
+    response = await client.post("/api/auth/login", json={
         "email": "wrongpass@example.com",
         "password": "WrongP@ssw0rd123"
     })
@@ -160,9 +160,9 @@ async def test_login_wrong_password(client, patched_get_session, mock_email_serv
 @pytest.mark.asyncio
 async def test_login_nonexistent_user(client, patched_get_session):
     """
-    Test POST /api/v1/auth/login with nonexistent email returns 401.
+    Test POST /api/auth/login with nonexistent email returns 401.
     """
-    response = await client.post("/api/v1/auth/login", json={
+    response = await client.post("/api/auth/login", json={
         "email": "nonexistent@example.com",
         "password": "AnyP@ssw0rd123"
     })
@@ -172,9 +172,9 @@ async def test_login_nonexistent_user(client, patched_get_session):
 @pytest.mark.asyncio
 async def test_logout_requires_auth(client):
     """
-    Test POST /api/v1/auth/logout without token returns 401.
+    Test POST /api/auth/logout without token returns 401.
     """
-    response = await client.post("/api/v1/auth/logout")
+    response = await client.post("/api/auth/logout")
     # Should fail due to missing auth token
     assert response.status_code in [401, 403, 500]  # Depends on auth middleware implementation
 
@@ -182,7 +182,7 @@ async def test_logout_requires_auth(client):
 @pytest.mark.asyncio
 async def test_verify_email_success(client, db_session):
     """
-    Test POST /api/v1/auth/verify-email with valid token verifies email.
+    Test POST /api/auth/verify-email with valid token verifies email.
     """
     with patch('src.api.auth.get_session') as mock_get_session, \
          patch('src.services.auth_service.AuthService.verify_verification_token', new_callable=AsyncMock) as mock_verify, \
@@ -212,7 +212,7 @@ async def test_verify_email_success(client, db_session):
         await db_session.flush()
 
         # Verify email
-        response = await client.post("/api/v1/auth/verify-email", json={
+        response = await client.post("/api/auth/verify-email", json={
             "token": "valid_token_123"
         })
         assert response.status_code == 200
@@ -224,13 +224,13 @@ async def test_verify_email_success(client, db_session):
 @pytest.mark.asyncio
 async def test_verify_email_invalid_token(client):
     """
-    Test POST /api/v1/auth/verify-email with invalid token returns 400.
+    Test POST /api/auth/verify-email with invalid token returns 400.
     """
     with patch('src.services.auth_service.AuthService.verify_verification_token', new_callable=AsyncMock) as mock_verify:
         # Mock returns None for invalid token
         mock_verify.return_value = None
 
-        response = await client.post("/api/v1/auth/verify-email", json={
+        response = await client.post("/api/auth/verify-email", json={
             "token": "invalid_token"
         })
         assert response.status_code == 400
@@ -239,7 +239,7 @@ async def test_verify_email_invalid_token(client):
 @pytest.mark.asyncio
 async def test_password_reset_request(client, db_session):
     """
-    Test POST /api/v1/auth/password-reset requests password reset.
+    Test POST /api/auth/password-reset requests password reset.
     """
     with patch('src.api.auth.get_session') as mock_get_session, \
          patch('src.services.auth_service.AuthService.store_password_reset_token', new_callable=AsyncMock), \
@@ -265,7 +265,7 @@ async def test_password_reset_request(client, db_session):
         db_session.add(user)
         await db_session.flush()
 
-        response = await client.post("/api/v1/auth/password-reset", json={
+        response = await client.post("/api/auth/password-reset", json={
             "email": "reset@example.com"
         })
         assert response.status_code == 200
@@ -277,7 +277,7 @@ async def test_password_reset_request(client, db_session):
 @pytest.mark.asyncio
 async def test_password_reset_nonexistent_email(client):
     """
-    Test POST /api/v1/auth/password-reset with nonexistent email.
+    Test POST /api/auth/password-reset with nonexistent email.
     Should return success to prevent email enumeration.
     """
     with patch('src.api.auth.get_session') as mock_get_session:
@@ -290,7 +290,7 @@ async def test_password_reset_nonexistent_email(client):
         mock_get_session.return_value.__aenter__.return_value = mock_session
         mock_get_session.return_value.__aexit__.return_value = None
 
-        response = await client.post("/api/v1/auth/password-reset", json={
+        response = await client.post("/api/auth/password-reset", json={
             "email": "nonexistent@example.com"
         })
         # Should return 200 to prevent email enumeration
@@ -300,7 +300,7 @@ async def test_password_reset_nonexistent_email(client):
 @pytest.mark.asyncio
 async def test_password_reset_confirm_success(client, db_session):
     """
-    Test POST /api/v1/auth/password-reset/confirm resets password.
+    Test POST /api/auth/password-reset/confirm resets password.
     """
     with patch('src.api.auth.get_session') as mock_get_session, \
          patch('src.services.auth_service.AuthService.verify_password_reset_token', new_callable=AsyncMock) as mock_verify:
@@ -326,7 +326,7 @@ async def test_password_reset_confirm_success(client, db_session):
         await db_session.flush()
 
         # Reset password
-        response = await client.post("/api/v1/auth/password-reset/confirm", json={
+        response = await client.post("/api/auth/password-reset/confirm", json={
             "token": "valid_reset_token",
             "new_password": "NewSecureP@ssw0rd456"
         })
@@ -339,12 +339,12 @@ async def test_password_reset_confirm_success(client, db_session):
 @pytest.mark.asyncio
 async def test_password_reset_confirm_weak_password(client):
     """
-    Test POST /api/v1/auth/password-reset/confirm with weak password returns 400.
+    Test POST /api/auth/password-reset/confirm with weak password returns 400.
     """
     with patch('src.services.auth_service.AuthService.verify_password_reset_token', new_callable=AsyncMock) as mock_verify:
         mock_verify.return_value = "user@example.com"
 
-        response = await client.post("/api/v1/auth/password-reset/confirm", json={
+        response = await client.post("/api/auth/password-reset/confirm", json={
             "token": "valid_token",
             "new_password": "weak"
         })
@@ -354,7 +354,7 @@ async def test_password_reset_confirm_weak_password(client):
 @pytest.mark.asyncio
 async def test_refresh_token_success(client, db_session):
     """
-    Test POST /api/v1/auth/refresh with valid refresh token returns new access token.
+    Test POST /api/auth/refresh with valid refresh token returns new access token.
     """
     with patch('src.api.auth.get_session') as mock_get_session, \
          patch('src.services.auth_service.AuthService.verify_jwt_token') as mock_verify, \
@@ -379,7 +379,7 @@ async def test_refresh_token_success(client, db_session):
         # Mock token verification to return user ID
         mock_verify.return_value = {"user_id": user.id, "email": user.email}
 
-        response = await client.post("/api/v1/auth/refresh", json={
+        response = await client.post("/api/auth/refresh", json={
             "refresh_token": "valid_refresh_token"
         })
         assert response.status_code == 200
@@ -393,14 +393,14 @@ async def test_refresh_token_success(client, db_session):
 @pytest.mark.asyncio
 async def test_refresh_token_invalid(client):
     """
-    Test POST /api/v1/auth/refresh with invalid token returns 401.
+    Test POST /api/auth/refresh with invalid token returns 401.
     """
     with patch('src.services.auth_service.AuthService.verify_jwt_token') as mock_verify:
         # Mock raises exception for invalid token
         from src.middleware.error_handler import APIError
         mock_verify.side_effect = APIError("Invalid token", status_code=401)
 
-        response = await client.post("/api/v1/auth/refresh", json={
+        response = await client.post("/api/auth/refresh", json={
             "refresh_token": "invalid_token"
         })
         assert response.status_code == 401
@@ -409,7 +409,7 @@ async def test_refresh_token_invalid(client):
 @pytest.mark.asyncio
 async def test_refresh_token_missing(client):
     """
-    Test POST /api/v1/auth/refresh without token returns 400.
+    Test POST /api/auth/refresh without token returns 400.
     """
-    response = await client.post("/api/v1/auth/refresh", json={})
+    response = await client.post("/api/auth/refresh", json={})
     assert response.status_code == 400

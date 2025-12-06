@@ -113,14 +113,14 @@ async def test_send_message_creates_new_conversation(
     patched_get_session
 ):
     """
-    Test POST /api/v1/chat/message creates new conversation and returns correct response.
+    Test POST /api/chat/message creates new conversation and returns correct response.
     """
     message_data = {
         "message": "How do I implement recursion in Python?"
     }
 
     response = await client.post(
-        "/api/v1/chat/message",
+        "/api/chat/message",
         json=message_data,
         headers={"Authorization": "Bearer fake_token"}
     )
@@ -154,7 +154,7 @@ async def test_send_message_to_existing_conversation(
     patched_get_session
 ):
     """
-    Test POST /api/v1/chat/message adds to existing conversation.
+    Test POST /api/chat/message adds to existing conversation.
     """
     # Create existing conversation
     conversation = Conversation(
@@ -192,7 +192,7 @@ async def test_send_message_to_existing_conversation(
     }
 
     response = await client.post(
-        "/api/v1/chat/message",
+        "/api/chat/message",
         json=message_data,
         headers={"Authorization": "Bearer fake_token"}
     )
@@ -231,7 +231,7 @@ async def test_send_message_injects_user_context(
     }
 
     response = await client.post(
-        "/api/v1/chat/message",
+        "/api/chat/message",
         json=message_data,
         headers={"Authorization": "Bearer fake_token"}
     )
@@ -257,23 +257,23 @@ async def test_send_message_injects_user_context(
 @pytest.mark.asyncio
 async def test_send_message_unauthorized(client):
     """
-    Test POST /api/v1/chat/message without auth returns 401.
+    Test POST /api/chat/message without auth returns 401.
     """
     message_data = {
         "message": "Help me with Python"
     }
 
-    response = await client.post("/api/v1/chat/message", json=message_data)
+    response = await client.post("/api/chat/message", json=message_data)
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_send_message_missing_message_field(client, mock_jwt_auth):
     """
-    Test POST /api/v1/chat/message without message field returns 400.
+    Test POST /api/chat/message without message field returns 400.
     """
     response = await client.post(
-        "/api/v1/chat/message",
+        "/api/chat/message",
         json={},
         headers={"Authorization": "Bearer fake_token"}
     )
@@ -289,7 +289,7 @@ async def test_get_conversations_list(
     patched_get_session
 ):
     """
-    RED: Test GET /api/v1/chat/conversations returns user's conversations.
+    RED: Test GET /api/chat/conversations returns user's conversations.
     This test SHOULD FAIL initially.
     """
     # Create some conversations
@@ -321,7 +321,7 @@ async def test_get_conversations_list(
     await db_session.flush()
 
     response = await client.get(
-        "/api/v1/chat/conversations",
+        "/api/chat/conversations",
         headers={"Authorization": "Bearer fake_token"}
     )
 
@@ -348,7 +348,7 @@ async def test_get_conversation_history(
     patched_get_session
 ):
     """
-    RED: Test GET /api/v1/chat/conversations/<id> returns conversation messages.
+    RED: Test GET /api/chat/conversations/<id> returns conversation messages.
     This test SHOULD FAIL initially.
     """
     # Create conversation with messages
@@ -383,7 +383,7 @@ async def test_get_conversation_history(
     await db_session.flush()
 
     response = await client.get(
-        f"/api/v1/chat/conversations/{conversation.id}",
+        f"/api/chat/conversations/{conversation.id}",
         headers={"Authorization": "Bearer fake_token"}
     )
 
@@ -407,10 +407,10 @@ async def test_get_conversation_not_found(
     patched_get_session
 ):
     """
-    Test GET /api/v1/chat/conversations/<id> with non-existent ID returns 404.
+    Test GET /api/chat/conversations/<id> with non-existent ID returns 404.
     """
     response = await client.get(
-        "/api/v1/chat/conversations/99999",
+        "/api/chat/conversations/99999",
         headers={"Authorization": "Bearer fake_token"}
     )
 
@@ -452,7 +452,7 @@ async def test_get_conversation_unauthorized_access(
 
     # Try to access other user's conversation
     response = await client.get(
-        f"/api/v1/chat/conversations/{other_conversation.id}",
+        f"/api/chat/conversations/{other_conversation.id}",
         headers={"Authorization": "Bearer fake_token"}
     )
 

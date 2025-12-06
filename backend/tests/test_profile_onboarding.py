@@ -72,7 +72,7 @@ class TestOnboardingQuestions:
             mock_validate.return_value = True
 
             response = await client.get(
-                "/api/v1/users/onboarding/questions",
+                "/api/users/onboarding/questions",
                 headers={"Authorization": "Bearer test-token"}
             )
 
@@ -87,7 +87,7 @@ class TestOnboardingQuestions:
     @pytest.mark.asyncio
     async def test_get_onboarding_questions_unauthorized(self, client):
         """Test onboarding questions without authentication."""
-        response = await client.get("/api/v1/users/onboarding/questions")
+        response = await client.get("/api/users/onboarding/questions")
         assert response.status_code == 401
 
 
@@ -115,7 +115,7 @@ class TestOnboardingStatus:
             }
 
             response = await client.get(
-                "/api/v1/users/onboarding/status",
+                "/api/users/onboarding/status",
                 headers={"Authorization": "Bearer test-token"}
             )
 
@@ -145,7 +145,7 @@ class TestOnboardingStatus:
             }
 
             response = await client.get(
-                "/api/v1/users/onboarding/status",
+                "/api/users/onboarding/status",
                 headers={"Authorization": "Bearer test-token"}
             )
 
@@ -195,7 +195,7 @@ class TestCompleteOnboarding:
             mock_db.return_value.__aenter__.return_value = mock_session
 
             response = await client.post(
-                "/api/v1/users/onboarding",
+                "/api/users/onboarding",
                 json=onboarding_data,
                 headers={"Authorization": "Bearer test-token"}
             )
@@ -230,7 +230,7 @@ class TestCompleteOnboarding:
             mock_validate.return_value = True
 
             response = await client.post(
-                "/api/v1/users/onboarding",
+                "/api/users/onboarding",
                 json=onboarding_data,
                 headers={"Authorization": "Bearer test-token"}
             )
@@ -258,7 +258,7 @@ class TestCompleteOnboarding:
             mock_validate.return_value = True
 
             response = await client.post(
-                "/api/v1/users/onboarding",
+                "/api/users/onboarding",
                 json=onboarding_data,
                 headers={"Authorization": "Bearer test-token"}
             )
@@ -288,7 +288,7 @@ class TestCompleteOnboarding:
             mock_validate.return_value = True
 
             response = await client.post(
-                "/api/v1/users/onboarding",
+                "/api/users/onboarding",
                 json=onboarding_data,
                 headers={"Authorization": "Bearer test-token"}
             )
@@ -322,7 +322,7 @@ class TestUserProfile:
             mock_db.return_value.__aenter__.return_value = mock_session
 
             response = await client.get(
-                "/api/v1/users/me",
+                "/api/users/me",
                 headers={"Authorization": "Bearer test-token"}
             )
 
@@ -363,7 +363,7 @@ class TestUserProfile:
             mock_db.return_value.__aenter__.return_value = mock_session
 
             response = await client.put(
-                "/api/v1/users/me",
+                "/api/users/me",
                 json=update_data,
                 headers={"Authorization": "Bearer test-token"}
             )
@@ -404,7 +404,7 @@ class TestUserProgress:
             mock_db.return_value.__aenter__.return_value = mock_session
 
             response = await client.get(
-                "/api/v1/users/me/progress",
+                "/api/users/me/progress",
                 headers={"Authorization": "Bearer test-token"}
             )
 
@@ -441,7 +441,7 @@ class TestUserPreferences:
             mock_db.return_value.__aenter__.return_value = mock_session
 
             response = await client.get(
-                "/api/v1/users/me/preferences",
+                "/api/users/me/preferences",
                 headers={"Authorization": "Bearer test-token"}
             )
 
@@ -482,7 +482,7 @@ class TestUserPreferences:
             mock_db.return_value.__aenter__.return_value = mock_session
 
             response = await client.put(
-                "/api/v1/users/me/preferences",
+                "/api/users/me/preferences",
                 json=update_data,
                 headers={"Authorization": "Bearer test-token"}
             )

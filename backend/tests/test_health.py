@@ -8,9 +8,9 @@ from quart import Quart
 @pytest.mark.asyncio
 async def test_health_check(client):
     """
-    Test GET /api/v1/health/ returns healthy status.
+    Test GET /api/health/ returns healthy status.
     """
-    response = await client.get("/api/v1/health/")
+    response = await client.get("/api/health/")
     assert response.status_code == 200
 
     data = await response.get_json()
@@ -24,9 +24,9 @@ async def test_health_check(client):
 @pytest.mark.asyncio
 async def test_readiness_check(client):
     """
-    Test GET /api/v1/health/ready returns ready status.
+    Test GET /api/health/ready returns ready status.
     """
-    response = await client.get("/api/v1/health/ready")
+    response = await client.get("/api/health/ready")
     assert response.status_code == 200
 
     data = await response.get_json()
@@ -39,9 +39,9 @@ async def test_readiness_check(client):
 @pytest.mark.asyncio
 async def test_liveness_check(client):
     """
-    Test GET /api/v1/health/live returns alive status.
+    Test GET /api/health/live returns alive status.
     """
-    response = await client.get("/api/v1/health/live")
+    response = await client.get("/api/health/live")
     assert response.status_code == 200
 
     data = await response.get_json()
