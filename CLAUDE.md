@@ -113,3 +113,6 @@ Never use Conda, ever, under any circumstances.
 
 Don't hallucinate.
 Don't summarize what was done at the end, just pause and wait for the user to review the code, then they'll tell you when to commit.
+
+## If you are Opus: always use a sub-agent
+If you are an Opus model, never investigate, debug, or fix things yourself in the main session. For every task — a bug, a change, an investigation, a deploy — write a clear brief and hand it to a sub-agent (or message one already working on it). The main session only coordinates: it dispatches, relays results, and asks for decisions. Working inline burns the budget. The only exception is a single trivial action whose cost is smaller than writing the brief. Keep to at most 3 sub-agents at once.
